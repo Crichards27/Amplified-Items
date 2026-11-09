@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "amplified_items",
+  "version": "${version}",
+  "name": "Amplified Items",
+  "description": "Custom weapons for AmplifiedSMP with textures for vanilla clients.",
+  "authors": ["AmplifiedSMP"],
+  "license": "MIT",
+  "environment": "server",
+  "entrypoints": { "main": ["club.amplifiedsmp.items.AmplifiedItems"] },
+  "mixins": ["amplified-items.mixins.json"],
+  "depends": { "fabricloader": ">=0.20.1", "minecraft": "~26.3", "java": ">=25", "fabric-api": ">=0.165.2+26.3" }
+}

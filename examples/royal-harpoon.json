@@ -1,0 +1,23 @@
+{
+  "id": "royal_harpoon",
+  "name": "Royal Harpoon",
+  "baseItem": "minecraft:iron_sword",
+  "model": "amplified_items:kings_decree",
+  "primary": "grapple_hook",
+  "secondary": "execution",
+  "passive": "none",
+  "primaryCooldownSeconds": 7,
+  "secondaryCooldownSeconds": 60,
+  "lore": [
+    "Grapple Hook",
+    "Execution"
+  ],
+  "enabled": true,
+  "ritual": {
+    "minutes": 15,
+    "ingredients": {
+      "minecraft:iron_sword": 1,
+      "minecraft:diamond": 2
+    }
+  }
+}

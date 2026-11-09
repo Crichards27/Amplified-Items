@@ -1,0 +1,8 @@
+{
+  "required": true,
+  "package": "club.amplifiedsmp.items.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "mixins": ["LivingEntityMixin", "ProjectileMixin", "ResourcePackMixin", "ChunkMapAccess", "TrackedEntityMixin", "CrossbowMixin",
+    "PlayerMixin", "BowMixin", "ProjectileWeaponMixin", "AbilityKeyMixin", "LivingFlagsAccess"],
+  "injectors": { "defaultRequire": 1 }
+}

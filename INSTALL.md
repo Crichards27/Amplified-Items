@@ -2,18 +2,22 @@
 
 For AmplifiedSMP on Minecraft Java 26.3. The server needs Java 25, Fabric Loader 0.20.1 or later, and Fabric API for 26.3. Players can join with vanilla Minecraft.
 
-1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.3.0.jar`.
+1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.4.0.jar`.
 2. Start the server. It updates `config/amplified-items/config.json`.
 3. Accept the server resource pack in Minecraft to see the custom textures.
 
 ## Controls
 
-Hold the weapon in your main hand. Press **F** for the first ability or **sneak + F** for the second. If you rebind **Swap Item With Offhand**, use that key.
+1. Hold the weapon in your main hand and press **F** to open its ability menu.
+2. Click the ability you want. The menu closes and remembers your choice for that weapon.
+3. **Right-click** to cast the selected ability. The first available ability is selected by default.
 
-- King’s Decree captures a mob you aim at within five blocks. Press F again to summon or recall it.
-- Bows, crossbows, and tridents use right-click as usual. Tap right-click with WindWalker to toggle Slow Falling. Hold and release it to shoot without arrows.
-- Spider’s Bane poisons on the fifth critical hit against the same target. Sneak + F fires its web grapple.
-- VenomBolt’s grapple and Spider’s Bane’s web grapple reach up to 16 blocks.
+**Sneak + right-click** uses the item normally. You can also choose **Normal item use** in the menu. For WindWalker, a short normal-use tap toggles Slow Falling and a full draw shoots without ammo.
+
+- If you rebound **Swap Item With Offhand**, use that key to open the menu.
+- With **Ruler's Command** selected, aim at a mob within five blocks and right-click to capture it. Right-click again to summon or recall it.
+- Spider's Bane's Critical Combo triggers automatically on the fifth critical hit against the same target. Select Web Grapple to use it with right-click.
+- VenomBolt's grapple and Spider's Bane's web grapple reach up to 16 blocks.
 
 ## Craft a weapon
 
@@ -49,4 +53,4 @@ If the server already sends the Amplified Items pack, you can keep using it. To 
 }
 ```
 
-Restart after editing. For external hosting, upload `amplified-items-resources-1.3.0.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.
+Restart after editing. For external hosting, upload `amplified-items-resources-1.4.0.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.

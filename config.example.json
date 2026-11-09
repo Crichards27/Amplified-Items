@@ -1,5 +1,5 @@
 {
-  "configVersion": 4,
+  "configVersion": 5,
   "executionMultiplier": 1.3,
   "executionSeconds": 30,
   "executionRange": 24.0,
@@ -70,9 +70,8 @@
       "primaryCooldownSeconds": 3.0,
       "secondaryCooldownSeconds": 45.0,
       "lore": [
-        "Aim at a mob and press F to capture",
-        "F: summon / recall",
-        "Sneak + F: Execution",
+        "Ruler's Command: capture, summon, or recall a mob",
+        "Execution",
         "Authority: nearby players reduce damage"
       ],
       "enabled": true,
@@ -96,8 +95,8 @@
       "primaryCooldownSeconds": 8.0,
       "secondaryCooldownSeconds": 5.0,
       "lore": [
-        "F: Venom Shot",
-        "Sneak + F: Grapple Hook",
+        "Venom Shot",
+        "Grapple Hook",
         "Poison II splash for 10 seconds"
       ],
       "enabled": true,
@@ -121,8 +120,8 @@
       "primaryCooldownSeconds": 15.0,
       "secondaryCooldownSeconds": 40.0,
       "lore": [
-        "F: Soul Stealer",
-        "Sneak + F: Shadow Step",
+        "Soul Stealer",
+        "Shadow Step",
         "+5 max hearts. Speed I at 15 hearts."
       ],
       "enabled": true,
@@ -146,8 +145,8 @@
       "primaryCooldownSeconds": 8.0,
       "secondaryCooldownSeconds": 18.0,
       "lore": [
-        "F: Flaming Burst",
-        "Sneak + F: Solar Flare",
+        "Flaming Burst",
+        "Solar Flare",
         "Normal arrows ignite."
       ],
       "enabled": true,
@@ -171,8 +170,8 @@
       "primaryCooldownSeconds": 10.0,
       "secondaryCooldownSeconds": 35.0,
       "lore": [
-        "F: Tide",
-        "Sneak + F: Riptide",
+        "Tide",
+        "Riptide",
         "Water Breathing and Dolphin's Grace in water."
       ],
       "enabled": true,
@@ -196,8 +195,8 @@
       "primaryCooldownSeconds": 45.0,
       "secondaryCooldownSeconds": 40.0,
       "lore": [
-        "F: Phantom Phase",
-        "Sneak + F: HollowMoon",
+        "Phantom Phase",
+        "HollowMoon",
         "Stronger at night. Night Vision while held."
       ],
       "enabled": true,
@@ -221,8 +220,8 @@
       "primaryCooldownSeconds": 8.0,
       "secondaryCooldownSeconds": 20.0,
       "lore": [
-        "F: Heatwave",
-        "Sneak + F: Sunflare",
+        "Heatwave",
+        "Sunflare",
         "Melee hits sweep and burn. Stronger by day."
       ],
       "enabled": true,
@@ -246,8 +245,8 @@
       "primaryCooldownSeconds": 10.0,
       "secondaryCooldownSeconds": 20.0,
       "lore": [
-        "F: Windburst",
-        "Sneak + F: Updraft",
+        "Windburst",
+        "Updraft",
         "Tap right-click: Slow Falling",
         "Hold and release: Shoot without ammo"
       ],
@@ -273,7 +272,7 @@
       "secondaryCooldownSeconds": 5.0,
       "lore": [
         "Land 5 crits on one target: Poison II",
-        "Sneak + F: Web Grapple",
+        "Web Grapple",
         "Walk through cobwebs at normal speed."
       ],
       "enabled": true,
@@ -297,8 +296,8 @@
       "primaryCooldownSeconds": 20.0,
       "secondaryCooldownSeconds": 12.0,
       "lore": [
-        "F: Blood Rush",
-        "Sneak + F: Crimson Cleave",
+        "Blood Rush",
+        "Crimson Cleave",
         "Land 5 hits for a temporary damage boost."
       ],
       "enabled": true,

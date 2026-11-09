@@ -1,6 +1,6 @@
-# Amplified Items source
+# Amplified Items
 
-See `INSTALL.md` for the server setup and controls.
+A server-side weapon mod for AmplifiedSMP on Fabric 26.3. Press **F** to choose an ability and **right-click** to cast it. See [INSTALL.md](INSTALL.md) for setup, controls, and altar crafting.
 
 ## Change the balance
 
