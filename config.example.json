@@ -1,0 +1,315 @@
+{
+  "configVersion": 4,
+  "executionMultiplier": 1.3,
+  "executionSeconds": 30,
+  "executionRange": 24.0,
+  "authorityOtherPlayers": 3,
+  "authorityRadius": 12.0,
+  "authorityReduction": 0.1,
+  "venomRadius": 4.0,
+  "venomPoisonSeconds": 10,
+  "venomSplashDamage": 2.0,
+  "venomDirectDamage": 6.0,
+  "grappleRange": 16.0,
+  "grappleVelocity": 1.5,
+  "soulStealerDamage": 4.0,
+  "soulStealerRange": 6.0,
+  "shadowStepSeconds": 6,
+  "reaperBonusHealth": 10.0,
+  "flamingBurstDamage": 4.0,
+  "flamingBurstFireSeconds": 3,
+  "solarFlareDamage": 4.0,
+  "solarFlareRadius": 3.0,
+  "solarFlareBlindnessSeconds": 5,
+  "tideDamage": 4.0,
+  "tideRange": 24.0,
+  "tideRadius": 2.5,
+  "riptideSeconds": 10,
+  "riptideVelocity": 1.8,
+  "phantomPhaseSeconds": 5,
+  "hollowMoonSeconds": 15,
+  "heatwaveDamage": 3.0,
+  "heatwaveRange": 4.5,
+  "heatwaveFireSeconds": 3,
+  "sunflareDamage": 4.0,
+  "sunflareRadius": 5.0,
+  "sunflareFireSeconds": 4,
+  "windburstRadius": 5.0,
+  "windburstKnockback": 1.45,
+  "updraftSeconds": 8,
+  "spiderComboHits": 5,
+  "spiderComboGapSeconds": 8,
+  "spiderPoisonSeconds": 60,
+  "bloodRushSeconds": 8,
+  "crimsonCleaveDamage": 6.0,
+  "crimsonCleaveRange": 4.5,
+  "bloodlustHits": 5,
+  "bloodlustSeconds": 6,
+  "bloodlustBuildSeconds": 10,
+  "bloodlustBonus": 0.2,
+  "summonMaxSeconds": 60,
+  "summonIdleSeconds": 10,
+  "summonMeleeDamage": 4.0,
+  "summonTargetRange": 24.0,
+  "captureDenylist": [],
+  "allowCapturingOtherPlayersPets": false,
+  "resourcePackHostEnabled": false,
+  "resourcePackBindAddress": "0.0.0.0",
+  "resourcePackPort": 8190,
+  "resourcePackPublicUrl": "",
+  "resourcePackRequired": true,
+  "weapons": [
+    {
+      "id": "kings_decree",
+      "name": "King's Decree",
+      "baseItem": "minecraft:iron_sword",
+      "model": "amplified_items:kings_decree",
+      "primary": "rulers_command",
+      "secondary": "execution",
+      "passive": "rulers_authority",
+      "primaryCooldownSeconds": 3.0,
+      "secondaryCooldownSeconds": 45.0,
+      "lore": [
+        "Aim at a mob and press F to capture",
+        "F: summon / recall",
+        "Sneak + F: Execution",
+        "Authority: nearby players reduce damage"
+      ],
+      "enabled": true,
+      "ritual": {
+        "minutes": 15,
+        "ingredients": {
+          "minecraft:iron_sword": 1,
+          "minecraft:gold_block": 4,
+          "minecraft:diamond": 1
+        }
+      }
+    },
+    {
+      "id": "venombolt",
+      "name": "VenomBolt",
+      "baseItem": "minecraft:crossbow",
+      "model": "amplified_items:venombolt",
+      "primary": "venom_shot",
+      "secondary": "grapple_hook",
+      "passive": "none",
+      "primaryCooldownSeconds": 8.0,
+      "secondaryCooldownSeconds": 5.0,
+      "lore": [
+        "F: Venom Shot",
+        "Sneak + F: Grapple Hook",
+        "Poison II splash for 10 seconds"
+      ],
+      "enabled": true,
+      "ritual": {
+        "minutes": 15,
+        "ingredients": {
+          "minecraft:crossbow": 1,
+          "minecraft:fermented_spider_eye": 8,
+          "minecraft:emerald": 4
+        }
+      }
+    },
+    {
+      "id": "reapers_edge",
+      "name": "Reaper's Edge",
+      "baseItem": "minecraft:netherite_sword",
+      "model": "amplified_items:reapers_edge",
+      "primary": "soul_stealer",
+      "secondary": "shadow_step",
+      "passive": "reaper_vitality",
+      "primaryCooldownSeconds": 15.0,
+      "secondaryCooldownSeconds": 40.0,
+      "lore": [
+        "F: Soul Stealer",
+        "Sneak + F: Shadow Step",
+        "+5 max hearts. Speed I at 15 hearts."
+      ],
+      "enabled": true,
+      "ritual": {
+        "minutes": 30,
+        "ingredients": {
+          "minecraft:netherite_sword": 1,
+          "minecraft:nether_star": 1,
+          "minecraft:ghast_tear": 4
+        }
+      }
+    },
+    {
+      "id": "sunpiercer",
+      "name": "SunPiercer",
+      "baseItem": "minecraft:crossbow",
+      "model": "amplified_items:sunpiercer",
+      "primary": "flaming_burst",
+      "secondary": "solar_flare",
+      "passive": "flame_crossbow",
+      "primaryCooldownSeconds": 8.0,
+      "secondaryCooldownSeconds": 18.0,
+      "lore": [
+        "F: Flaming Burst",
+        "Sneak + F: Solar Flare",
+        "Normal arrows ignite."
+      ],
+      "enabled": true,
+      "ritual": {
+        "minutes": 15,
+        "ingredients": {
+          "minecraft:crossbow": 1,
+          "minecraft:blaze_rod": 8,
+          "minecraft:gold_block": 4
+        }
+      }
+    },
+    {
+      "id": "leviathans_wrath",
+      "name": "Leviathan's Wrath",
+      "baseItem": "minecraft:trident",
+      "model": "amplified_items:leviathans_wrath",
+      "primary": "tide",
+      "secondary": "riptide",
+      "passive": "ocean_blessing",
+      "primaryCooldownSeconds": 10.0,
+      "secondaryCooldownSeconds": 35.0,
+      "lore": [
+        "F: Tide",
+        "Sneak + F: Riptide",
+        "Water Breathing and Dolphin's Grace in water."
+      ],
+      "enabled": true,
+      "ritual": {
+        "minutes": 30,
+        "ingredients": {
+          "minecraft:trident": 1,
+          "minecraft:heart_of_the_sea": 1,
+          "minecraft:prismarine_crystals": 8
+        }
+      }
+    },
+    {
+      "id": "nightblade",
+      "name": "NightBlade",
+      "baseItem": "minecraft:netherite_sword",
+      "model": "amplified_items:nightblade",
+      "primary": "phantom_phase",
+      "secondary": "hollow_moon",
+      "passive": "night_cycle",
+      "primaryCooldownSeconds": 45.0,
+      "secondaryCooldownSeconds": 40.0,
+      "lore": [
+        "F: Phantom Phase",
+        "Sneak + F: HollowMoon",
+        "Stronger at night. Night Vision while held."
+      ],
+      "enabled": true,
+      "ritual": {
+        "minutes": 30,
+        "ingredients": {
+          "minecraft:netherite_sword": 1,
+          "minecraft:phantom_membrane": 8,
+          "minecraft:echo_shard": 4
+        }
+      }
+    },
+    {
+      "id": "solarblade",
+      "name": "SolarBlade",
+      "baseItem": "minecraft:netherite_sword",
+      "model": "amplified_items:solarblade",
+      "primary": "heatwave",
+      "secondary": "sunflare",
+      "passive": "solar_cycle",
+      "primaryCooldownSeconds": 8.0,
+      "secondaryCooldownSeconds": 20.0,
+      "lore": [
+        "F: Heatwave",
+        "Sneak + F: Sunflare",
+        "Melee hits sweep and burn. Stronger by day."
+      ],
+      "enabled": true,
+      "ritual": {
+        "minutes": 30,
+        "ingredients": {
+          "minecraft:netherite_sword": 1,
+          "minecraft:blaze_rod": 8,
+          "minecraft:nether_star": 1
+        }
+      }
+    },
+    {
+      "id": "windwalker",
+      "name": "WindWalker",
+      "baseItem": "minecraft:bow",
+      "model": "amplified_items:windwalker",
+      "primary": "windburst",
+      "secondary": "updraft",
+      "passive": "windwalker",
+      "primaryCooldownSeconds": 10.0,
+      "secondaryCooldownSeconds": 20.0,
+      "lore": [
+        "F: Windburst",
+        "Sneak + F: Updraft",
+        "Tap right-click: Slow Falling",
+        "Hold and release: Shoot without ammo"
+      ],
+      "enabled": true,
+      "ritual": {
+        "minutes": 15,
+        "ingredients": {
+          "minecraft:bow": 1,
+          "minecraft:breeze_rod": 8,
+          "minecraft:feather": 4
+        }
+      }
+    },
+    {
+      "id": "spiders_bane",
+      "name": "Spider's Bane",
+      "baseItem": "minecraft:diamond_sword",
+      "model": "amplified_items:spiders_bane",
+      "primary": "crit_combo",
+      "secondary": "web_grapple",
+      "passive": "web_phase",
+      "primaryCooldownSeconds": 30.0,
+      "secondaryCooldownSeconds": 5.0,
+      "lore": [
+        "Land 5 crits on one target: Poison II",
+        "Sneak + F: Web Grapple",
+        "Walk through cobwebs at normal speed."
+      ],
+      "enabled": true,
+      "ritual": {
+        "minutes": 15,
+        "ingredients": {
+          "minecraft:diamond_sword": 1,
+          "minecraft:cobweb": 16,
+          "minecraft:fermented_spider_eye": 8
+        }
+      }
+    },
+    {
+      "id": "bloodfang",
+      "name": "BloodFang",
+      "baseItem": "minecraft:netherite_sword",
+      "model": "amplified_items:bloodfang",
+      "primary": "blood_rush",
+      "secondary": "crimson_cleave",
+      "passive": "bloodlust",
+      "primaryCooldownSeconds": 20.0,
+      "secondaryCooldownSeconds": 12.0,
+      "lore": [
+        "F: Blood Rush",
+        "Sneak + F: Crimson Cleave",
+        "Land 5 hits for a temporary damage boost."
+      ],
+      "enabled": true,
+      "ritual": {
+        "minutes": 30,
+        "ingredients": {
+          "minecraft:netherite_sword": 1,
+          "minecraft:ghast_tear": 2,
+          "minecraft:redstone": 16
+        }
+      }
+    }
+  ]
+}

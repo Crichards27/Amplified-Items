@@ -1,0 +1,27 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version '1.19.3'
+}
+repositories { mavenCentral() }
+dependencies {
+    minecraft 'com.mojang:minecraft:26.3'
+    implementation 'net.fabricmc:fabric-loader:0.20.1'
+    implementation 'net.fabricmc.fabric-api:fabric-api:0.165.2+26.3'
+}
+java { toolchain.languageVersion = JavaLanguageVersion.of(25); withSourcesJar() }
+tasks.withType(JavaCompile).configureEach { options.release = 25 }
+processResources { inputs.property 'version', project.version; filesMatching('fabric.mod.json') { expand version: project.version } }
+tasks.register('logicChecks', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'club.amplifiedsmp.items.LogicChecks'
+    enableAssertions = true
+}
+check.dependsOn logicChecks
+tasks.register('resourcePack', Zip) {
+    from 'resourcepack'
+    archiveFileName = "amplified-items-resources-${project.version}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+}
+processResources.dependsOn resourcePack
+processResources { from(tasks.named('resourcePack')) { into 'bundled' } }
+build.dependsOn resourcePack
