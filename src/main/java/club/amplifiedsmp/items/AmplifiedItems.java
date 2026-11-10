@@ -32,7 +32,8 @@ public final class AmplifiedItems implements ModInitializer {
     public static final Logger LOG = LoggerFactory.getLogger("amplified-items");
     public static WeaponConfig CONFIG;
     public static Summons SUMMONS;
-    private static Rituals rituals;
+    private static Altars altars;
+    private static final CooldownBars BARS = new CooldownBars();
     public static long tick;
     public static final Timers COOLDOWNS = new Timers();
     private static final Map<UUID, Long> LAST_USE = new HashMap<>();
@@ -43,13 +44,23 @@ public final class AmplifiedItems implements ModInitializer {
         Abilities.init();
         AbilityMenu.register();
         UseItemCallback.EVENT.register((player, level, hand) -> useSelectedAbility(player, hand, null));
-        UseBlockCallback.EVENT.register((player, level, hand, hit) -> useSelectedAbility(player, hand, null));
+        UseBlockCallback.EVENT.register((player, level, hand, hit) -> {
+            if (player instanceof ServerPlayer serverPlayer && altars != null) {
+                var result = altars.use(serverPlayer, hand, hit.getBlockPos());
+                if (result != InteractionResult.PASS) {
+                    LAST_USE.put(serverPlayer.getUUID(), tick);
+                    return result;
+                }
+            }
+            return useSelectedAbility(player, hand, null);
+        });
         UseEntityCallback.EVENT.register((player, level, hand, entity, hit) ->
             useSelectedAbility(player, hand, entity instanceof LivingEntity living ? living : null));
         try { CONFIG = WeaponConfig.load(configPath()); WeaponItems.validate(CONFIG); }
         catch (Exception e) { throw new IllegalStateException("Fix config/amplified-items/config.json before starting", e); }
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
-            rituals = new Rituals(server);
+            try { altars = new Altars(server); }
+            catch (Exception e) { throw new IllegalStateException("Cannot open altar ledger", e); }
             tick = 0; COOLDOWNS.clear(); LAST_USE.clear(); Abilities.reset();
             try { SUMMONS = new Summons(server); }
             catch (Exception e) { throw new IllegalStateException("Cannot open summon ledger; restore its backup", e); }
@@ -57,24 +68,32 @@ public final class AmplifiedItems implements ModInitializer {
             catch (Exception e) { LOG.error("Resource pack could not be hosted. Use external hosting or fix the configured port.", e); }
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            for (ServerPlayer player : server.getPlayerList().getPlayers()) Abilities.clearPlayer(player);
-            rituals.stop();
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                Abilities.clearPlayer(player);
+                BARS.remove(player);
+            }
+            if (altars != null) altars.stop();
             if (SUMMONS != null) SUMMONS.stop();
             PACK.close();
         });
         ServerEntityEvents.ENTITY_LOAD.register((e,l) -> {
-            if (rituals != null) rituals.entityLoaded(e);
+            if (altars != null && e.entityTags().contains("amplified_ritual_defender")) {
+                altars.retireLegacyDefender(e);
+                return;
+            }
             if (SUMMONS != null && !e.isRemoved()) SUMMONS.loaded(e);
         });
         ServerLivingEntityEvents.AFTER_DEATH.register((e,s) -> {
             if (SUMMONS != null) { SUMMONS.died(e); if (e instanceof ServerPlayer) SUMMONS.recallOwner(e.getUUID()); }
-            if (e instanceof ServerPlayer player) Abilities.clearPlayer(player);
-            rituals.entityDied(e);
+            if (e instanceof ServerPlayer player) {
+                Abilities.clearPlayer(player);
+                BARS.remove(player);
+                PlayerHeads.drop(player, s);
+            }
         });
-        ServerLivingEntityEvents.MOB_CONVERSION.register((previous, converted, params) -> rituals.mobConverted(previous, converted));
-        PlayerBlockBreakEvents.AFTER.register((level, player, pos, state, blockEntity) -> {
-            if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) rituals.blockBroken(serverLevel, pos);
-        });
+        PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, blockEntity) ->
+            !(level instanceof net.minecraft.server.level.ServerLevel serverLevel) || altars == null
+                || !altars.protectedBlock(serverLevel, pos));
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((victim,source,amount) -> {
             if (victim instanceof ServerPlayer player && PlayerAbilities.isPhantom(player) && !source.is(DamageTypes.GENERIC_KILL)) return false;
             if (SUMMONS != null && source.getEntity() != null && SUMMONS.controlled(source.getEntity())) return false;
@@ -83,14 +102,15 @@ public final class AmplifiedItems implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             tick++;
             Abilities.tick(server);
-            if (tick % 20 == 0) rituals.tick();
+            if (tick % 20 == 0) altars.tick();
+            if (tick % 5 == 0) server.getPlayerList().getPlayers().forEach(BARS::update);
             if (SUMMONS != null) SUMMONS.tick();
             if (tick % 1200 == 0) { COOLDOWNS.prune(tick); LAST_USE.values().removeIf(t -> t + 100 < tick); }
         });
         ServerPlayConnectionEvents.JOIN.register((handler,sender,server) -> PACK.send(handler.player));
         ServerPlayConnectionEvents.DISCONNECT.register((handler,server) -> {
             if (SUMMONS != null) SUMMONS.recallOwner(handler.player.getUUID());
-            rituals.ownerLeft(handler.player);
+            BARS.remove(handler.player);
             Abilities.clearPlayer(handler.player); LAST_USE.remove(handler.player.getUUID());
         });
         commands();
@@ -131,6 +151,7 @@ public final class AmplifiedItems implements ModInitializer {
         } else if (Abilities.REGISTRY.get(ability).use(player, item, target)) {
             double seconds = ability.equals(weapon.primary()) ? weapon.primaryCooldownSeconds() : weapon.secondaryCooldownSeconds();
             COOLDOWNS.start(player.getUUID(), ability, tick, seconds);
+            BARS.update(player);
             player.swing(InteractionHand.MAIN_HAND, net.minecraft.world.item.component.SwingAnimation.DEFAULT, true);
         }
         return InteractionResult.CONSUME;
@@ -140,7 +161,7 @@ public final class AmplifiedItems implements ModInitializer {
         CommandRegistrationCallback.EVENT.register((dispatcher,access,environment) -> {
             dispatcher.register(Commands.literal("amplifieditems")
             .executes(ctx -> {
-                ctx.getSource().sendSuccess(() -> Component.literal("Hold a weapon and press F to choose an ability. Right-click to use it. See /amplifieditems ritual to craft one."), false); return 1;
+                ctx.getSource().sendSuccess(() -> Component.literal("Hold a weapon and press F to choose an ability. Right-click to use it. See /amplifieditems altar to claim one."), false); return 1;
             })
             .then(Commands.literal("status").executes(ctx -> {
                 var p = ctx.getSource().getPlayerOrException();
@@ -150,7 +171,7 @@ public final class AmplifiedItems implements ModInitializer {
                         + (w.primary().equals("rulers_command") || w.secondary().equals("rulers_command")
                             ? " | Stored mob: " + SUMMONS.status(p.getMainHandItem()) : "")), false); return 1;
             }))
-            .then(Rituals.commands(() -> rituals))
+            .then(Altars.commands(() -> altars))
             .then(Commands.literal("pack").executes(ctx -> { PACK.send(ctx.getSource().getPlayerOrException()); return 1; }))
             .then(Commands.literal("list").executes(ctx -> {
                 ctx.getSource().sendSuccess(() -> Component.literal(String.join(", ", CONFIG.weapons.stream().filter(WeaponDefinition::enabled).map(WeaponDefinition::id).toList())), false); return 1;
@@ -170,7 +191,7 @@ public final class AmplifiedItems implements ModInitializer {
                 try {
                     var next = WeaponConfig.load(configPath()); WeaponItems.validate(next);
                     CONFIG = next;
-                    rituals.settingsReloaded();
+                    altars.tick();
                     ctx.getSource().sendSuccess(() -> Component.literal("Weapon definitions and balance reloaded. Pack hosting changes require a server restart. Re-give items after changing their models or lore."), true); return 1;
                 } catch (Exception e) { ctx.getSource().sendFailure(Component.literal("Config rejected; previous settings kept: " + e.getMessage())); return 0; }
             })));

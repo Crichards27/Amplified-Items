@@ -7,7 +7,7 @@ import concurrent.futures, hashlib, json, os, pathlib, shutil, subprocess, sys, 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CACHE = pathlib.Path(os.environ.get('AMPLIFIED_BUILD_CACHE', ROOT/'build/direct-cache')).resolve()
 CP = CACHE/'classpath'
-VERSION = '1.5.1'
+VERSION = '1.6.1'
 def fetch(url, path, sha1=None, sha256=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     expected = sha256 or sha1

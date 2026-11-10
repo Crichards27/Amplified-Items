@@ -3,6 +3,6 @@
   "package": "club.amplifiedsmp.items.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": ["LivingEntityMixin", "ProjectileMixin", "ResourcePackMixin", "ChunkMapAccess", "TrackedEntityMixin", "CrossbowMixin",
-    "PlayerMixin", "BowMixin", "ProjectileWeaponMixin", "AbilityKeyMixin", "LivingFlagsAccess"],
+    "PlayerMixin", "BowMixin", "ProjectileWeaponMixin", "AbilityKeyMixin", "LivingFlagsAccess", "AltarDisplayAccess$Base", "AltarDisplayAccess$Item", "AltarDisplayAccess$Text", "AltarEntityMixin", "PlayerSaveAccess"],
   "injectors": { "defaultRequire": 1 }
 }

@@ -6,7 +6,7 @@ import com.mojang.authlib.GameProfile;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.commands.arguments.EntityAnchorArgument;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
@@ -19,6 +19,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMaps;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
+import net.minecraft.network.protocol.game.ClientboundBossEventPacket;
 import net.minecraft.network.protocol.game.ClientboundOpenScreenPacket;
 import net.minecraft.network.protocol.game.ServerboundContainerClickPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
@@ -29,8 +30,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.*;
 import net.minecraft.server.network.*;
+import net.minecraft.server.permissions.PermissionSet;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball;
@@ -59,7 +62,8 @@ import java.util.*;
 /** ISOLATED TEST SERVER ONLY. Never install the verification jar on a real server. */
 public final class RuntimeChecks implements ModInitializer {
     static int checks;
-    private static String lastRitualMessage;
+    private static String lastClaim;
+    private static int bossPackets;
     private static ClientboundOpenScreenPacket lastScreen;
     private static int predictedUseCorrections;
     private static int sequence;
@@ -70,7 +74,13 @@ public final class RuntimeChecks implements ModInitializer {
     }
     @Override public void onInitialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-            try { run(server); System.out.println("AMPLIFIED_RUNTIME_OK " + checks); }
+            try {
+                if (Boolean.getBoolean("amplified.verifyRestart")) {
+                    checkAltarRestart(server);
+                    checkStaffRestart(server);
+                } else run(server);
+                System.out.println("AMPLIFIED_RUNTIME_OK " + checks);
+            }
             catch (Throwable e) { System.out.println("AMPLIFIED_RUNTIME_FAILED"); e.printStackTrace(); }
             finally { server.halt(false); }
         });
@@ -83,9 +93,10 @@ public final class RuntimeChecks implements ModInitializer {
                 if (packet instanceof ClientboundBlockUpdatePacket update) BLOCK_UPDATES.add(update);
                 if (packet instanceof ClientboundOpenScreenPacket screen) lastScreen = screen;
                 if (packet instanceof ClientboundSetEntityDataPacket) predictedUseCorrections++;
+                if (packet instanceof ClientboundBossEventPacket) bossPackets++;
                 if (packet instanceof ClientboundSystemChatPacket chat) {
                     String message = chat.content().getString();
-                    if (message.startsWith("Ritual ") || message.contains("was forged")) lastRitualMessage = message;
+                    if (message.contains(" claimed ")) lastClaim = message;
                 }
             }
             @Override public void send(Packet<?> packet, io.netty.channel.ChannelFutureListener listener) { send(packet); }
@@ -101,7 +112,9 @@ public final class RuntimeChecks implements ModInitializer {
         return p;
     }
     static Mob active(ServerLevel level) {
-        for (Entity entity : level.getAllEntities()) if (entity instanceof Mob mob && entity.entityTags().contains("cw_summon") && !entity.isRemoved()) return mob;
+        for (Entity entity : level.getAllEntities()) {
+            if (entity instanceof Mob mob && mob.isAlive() && AmplifiedItems.SUMMONS.controlled(mob)) return mob;
+        }
         throw new AssertionError("No active summon");
     }
     static Projectile projectile(ServerLevel level) {
@@ -219,10 +232,12 @@ public final class RuntimeChecks implements ModInitializer {
         check(save.buildResult().getCompoundOrEmpty("fabric:attachments").getCompoundOrEmpty("amplified_items:ability_selections")
             .getStringOr("venombolt", "").equals("grapple_hook"), "Selected ability is saved in player data");
         int correctionsBefore = predictedUseCorrections;
+        int bossPacketsBefore = bossPackets;
         useItem(owner);
         check(AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "grapple_hook", 2000) == 100
             && AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "venom_shot", 2000) == 0,
             "A vanilla right-click packet uses the selected Grapple Hook");
+        check(bossPackets > bossPacketsBefore, "Casting sends the selected ability cooldown boss bar");
         check(predictedUseCorrections > correctionsBefore && !owner.isUsingItem(), "Ability cast corrects vanilla crossbow draw prediction");
         Projectile cast = projectile(level);
         useItem(owner);
@@ -259,7 +274,7 @@ public final class RuntimeChecks implements ModInitializer {
             check(WeaponItems.definition(bow) == null, "A disabled existing weapon has no active definition");
             pressF(owner);
             check(owner.getMainHandItem().is(Items.STONE) && owner.getOffhandItem() == bow, "F swaps a disabled weapon normally");
-            check(server.getCommands().getDispatcher().execute("amplifieditems ritual recipe venombolt", owner.createCommandSourceStack()) == 0,
+            check(server.getCommands().getDispatcher().execute("amplifieditems altar recipe venombolt", owner.createCommandSourceStack()) == 0,
                 "Disabled weapon recipes are unavailable");
         } finally {
             AmplifiedItems.CONFIG.weapons.set(1, original);
@@ -278,7 +293,8 @@ public final class RuntimeChecks implements ModInitializer {
         }
         checkNewWeapons(server, owner, victim);
         checkExpansion(server);
-        checkRituals(server, owner);
+        checkAltars(server, owner);
+        checkStaffUnload(server, owner);
         var dir=java.nio.file.Files.createTempDirectory("cw-pack-check-");
         var settings=AmplifiedItems.CONFIG; boolean oldEnabled=settings.resourcePackHostEnabled; int oldPort=settings.resourcePackPort; String oldBind=settings.resourcePackBindAddress;
         settings.resourcePackHostEnabled=true; settings.resourcePackPort=8199; settings.resourcePackBindAddress="127.0.0.1";
@@ -557,37 +573,54 @@ public final class RuntimeChecks implements ModInitializer {
         useItem(owner);
         check(owner.getDeltaMovement().lengthSqr() == 0, "Riptide window closes after ten seconds");
     }
-    static void checkRituals(MinecraftServer server, ServerPlayer owner) throws Exception {
+    static void checkAltars(MinecraftServer server, ServerPlayer owner) throws Exception {
         ServerLevel level = owner.level();
-        BlockPos core = new BlockPos(5, 101, 5);
-        for (int x = -1; x <= 1; x++) {
-            for (int z = -1; z <= 1; z++) level.setChunkForced(x, z, true);
-        }
+        BlockPos first = new BlockPos(2, 101, 5);
+        level.setChunkForced(0, 0, true);
         level.getChunkSource().tick(() -> true, false);
-        level.waitForEntities(new ChunkPos(0, 0), 1);
-        for (int x = -8; x <= 18; x++) {
-            for (int z = -8; z <= 18; z++) {
-                BlockPos floor = new BlockPos(x, 100, z);
-                level.setBlockAndUpdate(floor, Blocks.STONE.defaultBlockState());
-                level.setBlockAndUpdate(floor.above(), Blocks.AIR.defaultBlockState());
-                level.setBlockAndUpdate(floor.above(2), Blocks.AIR.defaultBlockState());
-            }
+        level.waitForEntities(new ChunkPos(0, 0), 0);
+        for (int x = 1; x <= 13; x++) {
+            level.setBlockAndUpdate(new BlockPos(x, 101, 5), Blocks.AIR.defaultBlockState());
         }
-        level.setBlockAndUpdate(core, Blocks.BARREL.defaultBlockState());
-        var barrel = (BarrelBlockEntity) level.getBlockEntity(core);
-        owner.setPos(5.5, 101, 2.5);
-        owner.lookAt(EntityAnchorArgument.Anchor.EYES, Vec3.atCenterOf(core).add(0, 0.45, 0));
+        owner.setPos(2.5, 101, 3.5);
         var dispatcher = server.getCommands().getDispatcher();
         var source = owner.createCommandSourceStack();
-        String start = "amplifieditems ritual start kings_decree";
-        String status = "amplifieditems ritual status";
-        check(dispatcher.execute(start, source) == 0, "A bare barrel cannot start a ritual");
-        for (int x = -1; x <= 1; x++) {
-            for (int z = -1; z <= 1; z++) {
-                if (x != 0 || z != 0) level.setBlockAndUpdate(core.offset(x, 0, z), Blocks.CHISELED_STONE_BRICKS.defaultBlockState());
-            }
-        }
-        check(dispatcher.execute(start, source) == 0, "An empty altar cannot start a ritual");
+        var admin = source.withPermission(PermissionSet.ALL_PERMISSIONS);
+        String command = "amplifieditems altar ";
+        var place = dispatcher.getRoot().getChild("amplifieditems").getChild("altar").getChild("place");
+        check(!place.canUse(source), "Survival players cannot place altars");
+        check(dispatcher.execute(command + "place kings_decree 2 101 5", admin) == 1, "An operator places a registered altar");
+        check(level.getBlockState(first).is(Blocks.BEDROCK), "The altar core is bedrock");
+        check(!PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(level, owner, first,
+            level.getBlockState(first), null), "The altar blocks player destruction");
+        List<Entity> visuals = altarDisplays(level);
+        check(visuals.size() == 2 && visuals.stream().anyMatch(Display.ItemDisplay.class::isInstance)
+            && visuals.stream().anyMatch(Display.TextDisplay.class::isInstance) && visuals.stream().noneMatch(Entity::shouldBeSaved),
+            "The altar has a floating weapon and recipe text rebuilt from the ledger");
+        level.setBlockAndUpdate(first, Blocks.AIR.defaultBlockState());
+        altarTick(server);
+        check(level.getBlockState(first).is(Blocks.BEDROCK) && altarDisplays(level).size() == 2,
+            "The loaded altar restores a missing core without duplicating its displays");
+        check(dispatcher.execute(command + "place kings_decree 3 101 5", admin) == 0, "A second altar for the same weapon is refused");
+
+        var defeated = player(server, "HeadDropTest", 3, 3.5);
+        defeated.setHealth(1);
+        defeated.damageCooldownTime = 0;
+        defeated.hurtServer(level, level.damageSources().playerAttack(owner), 100);
+        var head = java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .filter(ItemEntity.class::isInstance).map(ItemEntity.class::cast).map(ItemEntity::getItem)
+            .filter(stack -> stack.is(Items.PLAYER_HEAD)).findFirst().orElseThrow();
+        check(head.has(DataComponents.PROFILE) && head.get(DataComponents.PROFILE).name().orElse("").equals("HeadDropTest")
+            && head.get(DataComponents.CUSTOM_DATA).copyTag().getBooleanOr("amplified_pvp_head", false),
+            "A real player kill drops a recipe head with the victim's profile");
+        var environmental = player(server, "FallDeathTest", 3, 4.5);
+        environmental.setHealth(1);
+        environmental.damageCooldownTime = 0;
+        environmental.hurtServer(level, level.damageSources().fall(), 100);
+        long headCount = java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .filter(entity -> entity instanceof ItemEntity item && item.getItem().is(Items.PLAYER_HEAD)).count();
+        check(headCount == 1, "Environmental deaths do not produce PvP heads");
+
         ItemStack crown = craft(level, CraftingInput.of(3, 2, List.of(
             new ItemStack(Items.GOLD_INGOT), new ItemStack(Items.DIAMOND), new ItemStack(Items.GOLD_INGOT),
             new ItemStack(Items.GOLD_INGOT), new ItemStack(Items.EMERALD), new ItemStack(Items.GOLD_INGOT))));
@@ -595,88 +628,186 @@ public final class RuntimeChecks implements ModInitializer {
             new ItemStack(Items.GLOWSTONE), new ItemStack(Items.BLAZE_POWDER), new ItemStack(Items.GOLD_INGOT))));
         check(crown.is(Items.GOLDEN_HELMET) && crown.getHoverName().getString().equals("King's Crown")
             && sunlight.is(Items.GLOWSTONE_DUST) && sunlight.getHoverName().getString().equals("Sunlight"),
-            "Both custom ingredients can be made in a vanilla crafting table");
+            "Both custom ingredients still craft in a vanilla crafting table");
         ItemStack poison = new ItemStack(Items.TIPPED_ARROW, 16);
         poison.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.POISON));
         var special = Map.of("amplified_items:kings_crown", crown, "amplified_items:sunlight", sunlight,
-            "amplified_items:poison_arrow", poison);
+            "amplified_items:poison_arrow", poison, "amplified_items:pvp_head", head);
+        owner.getInventory().clearContent();
+        clickAltar(owner, first);
+        check(level.getBlockState(first).is(Blocks.BEDROCK), "An empty inventory cannot consume the altar");
 
+        int index = 0;
         for (var weapon : AmplifiedItems.CONFIG.weapons) {
-            int usedSlots = fillBarrel(barrel, weapon.ritual(), special);
-            check(usedSlots <= 27 && dispatcher.execute("amplifieditems ritual recipe " + weapon.id(), source) == 1,
-                weapon.name() + " recipe fits in " + usedSlots + " slots and can be shown in chat");
+            BlockPos core = first.offset(index, 0, 0);
+            if (index > 0) check(dispatcher.execute(command + "place " + weapon.id() + " " + core.getX() + " 101 5", admin) == 1,
+                "Placed " + weapon.name() + " altar");
+            index++;
+            owner.setPos(core.getX() + 0.5, 101, 3.5);
+            var slots = fillInventory(owner, weapon.ritual(), special);
+            check(slots.size() == weapon.ritual().ingredients().size()
+                && dispatcher.execute(command + "recipe " + weapon.id(), source) == 1, weapon.name() + " recipe fits in inventory and appears in chat");
+
+            if (weapon.id().equals("kings_decree")) {
+                int slot = slots.get("amplified_items:pvp_head");
+                owner.getInventory().setItem(slot, new ItemStack(Items.PLAYER_HEAD, 2));
+                clickAltar(owner, core);
+                check(level.getBlockState(core).is(Blocks.BEDROCK) && owner.getInventory().getItem(slot).getCount() == 2,
+                    "An ordinary player head cannot pay the PvP head cost");
+                owner.getInventory().setItem(slot, head.copyWithCount(2));
+                int ingotSlot = slots.get("minecraft:netherite_ingot");
+                owner.getInventory().setItem(ingotSlot, new ItemStack(Items.NETHERITE_INGOT, 9));
+            }
             if (weapon.id().equals("venombolt")) {
+                int slot = slots.get("amplified_items:poison_arrow");
                 var wrong = new ItemStack(Items.TIPPED_ARROW, 16);
                 wrong.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.SLOWNESS));
-                barrel.setItem(1, wrong);
-                check(dispatcher.execute("amplifieditems ritual start venombolt", source) == 0, "VenomBolt rejects other tipped arrows");
-                barrel.setItem(1, poison.copy());
+                owner.getInventory().setItem(slot, wrong);
+                clickAltar(owner, core);
+                check(level.getBlockState(core).is(Blocks.BEDROCK), "VenomBolt rejects other tipped arrows");
+                owner.getInventory().setItem(slot, poison.copy());
             }
             if (weapon.id().equals("solarblade")) {
-                var fake = new ItemStack(Items.GLOWSTONE_DUST);
-                fake.set(DataComponents.CUSTOM_NAME, Component.literal("Sunlight"));
-                barrel.setItem(usedSlots - 1, fake);
-                check(dispatcher.execute("amplifieditems ritual start solarblade", source) == 0, "Renamed glowstone dust cannot pass as Sunlight");
-                barrel.setItem(usedSlots - 1, sunlight.copy());
+                AmplifiedItems.CONFIG.altarEventRequirements.put(weapon.id(), "sunrise");
+                altarTick(server);
+                clickAltar(owner, core);
+                check(level.getBlockState(core).is(Blocks.BEDROCK), "A closed event gates an otherwise payable claim");
+                check(dispatcher.execute(command + "event sunrise open", admin) == 1, "An admin can open the required event");
             }
-            check(dispatcher.execute("amplifieditems ritual start " + weapon.id(), source) == 1,
-                "The complete " + weapon.name() + " recipe starts its ritual");
-            level.setBlockAndUpdate(core.offset(1, 0, 0), Blocks.AIR.defaultBlockState());
-            ritualTick(server, AmplifiedItems.tick + 20);
-            level.setBlockAndUpdate(core.offset(1, 0, 0), Blocks.CHISELED_STONE_BRICKS.defaultBlockState());
+            clickAltar(owner, core);
+            var rewards = owner.getInventory().getNonEquipmentItems().stream()
+                .filter(stack -> weapon.equals(WeaponItems.definition(stack))).toList();
+            check(rewards.size() == 1 && level.getBlockState(core).isAir() && lastClaim.contains(weapon.name()),
+                "Claiming " + weapon.name() + " awards one weapon, consumes the altar, and announces the winner");
+            if (weapon.id().equals("kings_decree")) {
+                check(owner.getInventory().countItem(Items.NETHERITE_INGOT) == 1
+                    && owner.getInventory().countItem(Items.PLAYER_HEAD) == 0, "The claim charges the exact recipe and leaves surplus materials");
+                check(dispatcher.execute(command + "place kings_decree 13 101 5", admin) == 0,
+                    "A second claim remains blocked at a different location");
+            }
         }
+        check(altarDisplays(level).isEmpty(), "Claimed altars leave no floating displays behind");
+        var visualOnly = LightningBolt.class.getDeclaredField("visualOnly");
+        visualOnly.setAccessible(true);
+        var lightning = new ArrayList<LightningBolt>();
+        for (Entity entity : level.getAllEntities()) if (entity instanceof LightningBolt bolt) lightning.add(bolt);
+        boolean cosmetic = !lightning.isEmpty();
+        for (LightningBolt bolt : lightning) cosmetic &= visualOnly.getBoolean(bolt);
+        check(cosmetic, "Altar claims spawn cosmetic lightning");
+        check(dispatcher.execute(command + "reset sunpiercer", admin) == 1
+            && level.getBlockState(first.offset(3, 0, 0)).is(Blocks.BEDROCK),
+            "An explicit reset reopens the prior altar site");
+        AmplifiedItems.CONFIG.altarEventRequirements.clear();
+    }
 
-        var kingRecipe = AmplifiedItems.CONFIG.enabledWeapon("kings_decree").ritual();
-        fillBarrel(barrel, kingRecipe, special);
-        var fake = new ItemStack(Items.GOLDEN_HELMET);
-        fake.set(DataComponents.CUSTOM_NAME, Component.literal("King's Crown"));
-        barrel.setItem(0, fake);
-        check(dispatcher.execute(start, source) == 0, "A renamed helmet cannot pass as King's Crown");
-        barrel.setItem(0, crown.copy());
-        barrel.setItem(1, new ItemStack(Items.NETHERITE_INGOT, 9));
-        long started = AmplifiedItems.tick;
-        check(dispatcher.execute(start, source) == 1 && dispatcher.execute(status, source) == 1, "A non-operator can start a complete altar");
-        check(dispatcher.execute(start, source) == 0 && barrel.getItem(0).is(Items.GOLDEN_HELMET),
-            "Duplicate start is rejected and ingredients stay in the barrel");
-        ritualTick(server, started + 1200);
-        List<Entity> wave = ritualMobs(level);
-        check(wave.size() == 2, "A 15-minute ritual spawns two defenders on the first minute");
-        check(!AmplifiedItems.SUMMONS.use(owner, WeaponItems.create(AmplifiedItems.CONFIG.enabledWeapon("kings_decree")),
-            (LivingEntity) wave.getFirst()), "King's Decree cannot store altar defenders");
-        clearWave(level, owner, wave);
-        for (int minute = 2; minute < 15; minute++) {
-            ritualTick(server, started + minute * 1200);
-            wave = ritualMobs(level);
-            if (wave.size() != 2) throw new AssertionError("Minute " + minute + " produced " + wave.size() + " visible hostiles");
-            clearWave(level, owner, wave);
-        }
-        ritualTick(server, started + 15 * 1200 - 20);
-        check(WeaponItems.definition(barrel.getItem(0)) == null, "Ritual cannot forge before 15 minutes");
-        ritualTick(server, started + 15 * 1200);
-        check(WeaponItems.definition(barrel.getItem(0)) != null && WeaponItems.definition(barrel.getItem(0)).id().equals("kings_decree") && barrel.getItem(1).getCount() == 1
-            && barrel.getItem(2).isEmpty() && dispatcher.execute(status, source) == 0, "Clearing the waves forges one weapon and consumes only recipe items (" + lastRitualMessage + ")");
+    private static final BlockPos STAFF_HOLDER = new BlockPos(14, 101, 1);
+    private static final ChunkPos SUMMON_CHUNK = new ChunkPos(8, 8);
+    private static final String CHUNK_COW = "Chunk Ledger Cow";
 
-        fillBarrel(barrel, kingRecipe, special);
-        started = AmplifiedItems.tick;
-        check(dispatcher.execute(start, source) == 1, "Altar can be reused");
-        ritualTick(server, started + 1200);
-        level.setBlockAndUpdate(core.offset(1, 0, 0), Blocks.AIR.defaultBlockState());
-        ritualTick(server, started + 1220);
-        check(ritualMobs(level).isEmpty() && barrel.getItem(0).is(Items.GOLDEN_HELMET) && dispatcher.execute(status, source) == 0,
-            "Breaking the ring fails the ritual, cleans up hostiles, and leaves the ingredients");
+    private static void checkStaffUnload(MinecraftServer server, ServerPlayer owner) throws Exception {
+        ServerLevel level = server.overworld();
+        loadSummonChunk(level);
+        owner.setPos(0.5, 101, 0.5);
+        owner.setYRot(0);
+        owner.setXRot(0);
+        var staff = weapon("kings_decree");
+        owner.setItemInHand(InteractionHand.MAIN_HAND, staff);
+        var cow = EntityTypes.COW.create(level, EntitySpawnReason.COMMAND);
+        cow.setPos(2, 101, 0.5);
+        cow.setCustomName(Component.literal(CHUNK_COW));
+        level.addFreshEntity(cow);
+        check(AmplifiedItems.SUMMONS.use(owner, staff, cow) && AmplifiedItems.SUMMONS.use(owner, staff, null),
+            "Chunk test captures and deploys a fresh cow");
+        Mob summon = active(level);
+        summon.setHealth(4);
+        summon.setPos(128.5, 101, 128.5);
+        unloadSummonChunk(level);
+        check(summon.getRemovalReason() == Entity.RemovalReason.UNLOADED_TO_CHUNK && summon.getHealth() == 4,
+            "Vanilla unload removes a living summon while preserving its health");
 
-        level.setBlockAndUpdate(core.offset(1, 0, 0), Blocks.CHISELED_STONE_BRICKS.defaultBlockState());
-        fillBarrel(barrel, AmplifiedItems.CONFIG.enabledWeapon("nightblade").ritual(), special);
-        started = AmplifiedItems.tick;
-        check(dispatcher.execute("amplifieditems ritual start nightblade", source) == 1, "The 30-minute NightBlade recipe starts");
-        ritualTick(server, started + 1200);
-        check(ritualMobs(level).size() == 3, "A 30-minute ritual sends three defenders per wave");
-        ritualTick(server, started + 15 * 1200);
-        check(barrel.getItem(0).is(Items.NETHERITE_INGOT) && dispatcher.execute(status, source) == 1,
-            "A 30-minute ritual is still running after 15 minutes");
-        ritualTick(server, started + 30 * 1200);
-        check(ritualMobs(level).isEmpty() && barrel.getItem(0).is(Items.NETHERITE_INGOT) && dispatcher.execute(status, source) == 0,
-            "Live defenders at the deadline prevent forging");
+        AmplifiedItems.SUMMONS.tick();
+        check(AmplifiedItems.SUMMONS.status(staff).equals("STORED"),
+            "The unloaded summon is recalled instead of being marked dead");
+        check(AmplifiedItems.SUMMONS.use(owner, staff, null), "The staff can summon again while the old chunk copy is parked");
+        Mob recalled = active(level);
+        check(recalled.getHealth() == 4 && recalled.getName().getString().equals(CHUNK_COW)
+            && !recalled.getUUID().equals(summon.getUUID()), "Recall preserves the mob's current health and name under a fresh UUID");
+        check(AmplifiedItems.SUMMONS.use(owner, staff, null), "Recall the surviving summon for the restart test");
+
+        level.setBlockAndUpdate(STAFF_HOLDER, Blocks.BARREL.defaultBlockState());
+        var holder = (BarrelBlockEntity) level.getBlockEntity(STAFF_HOLDER);
+        holder.setItem(0, staff);
+    }
+
+    private static void checkStaffRestart(MinecraftServer server) {
+        ServerLevel level = server.overworld();
+        loadSummonChunk(level);
+        var holder = (BarrelBlockEntity) level.getBlockEntity(STAFF_HOLDER);
+        ItemStack staff = holder.getItem(0);
+        check(AmplifiedItems.SUMMONS.status(staff).equals("STORED"), "The recalled mob remains stored after restarting the server");
+        var parked = java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .filter(e -> e.getName().getString().equals(CHUNK_COW)).findFirst().orElseThrow();
+        AmplifiedItems.SUMMONS.tick();
+        check(parked.isRemoved(), "The old world copy is discarded safely when its chunk reloads after restart");
+
+        ServerPlayer owner = player(server, "StaffRestartCheck", 0.5, 0.5);
+        owner.setItemInHand(InteractionHand.MAIN_HAND, staff);
+        check(AmplifiedItems.SUMMONS.use(owner, staff, null), "The staff deploys the saved summon after restart");
+        Mob mob = active(level);
+        check(mob.getHealth() == 4 && mob.getName().getString().equals(CHUNK_COW),
+            "Restart preserves the recalled mob's exact health and name");
+        AmplifiedItems.SUMMONS.recallOwner(owner.getUUID());
+        level.removePlayerImmediately(owner, Entity.RemovalReason.DISCARDED);
+        server.getPlayerList().getPlayers().remove(owner);
+        server.getPlayerList().getPlayersByUUID().remove(owner.getUUID());
+    }
+
+    private static void loadSummonChunk(ServerLevel level) {
+        level.setChunkForced(8, 8, true);
+        level.getChunkSource().tick(() -> true, false);
+        level.waitForEntities(SUMMON_CHUNK, 0);
+    }
+
+    private static void unloadSummonChunk(ServerLevel level) throws ReflectiveOperationException {
+        // Drive the vanilla save-and-unload path synchronously in the test server.
+        var entityManager = ServerLevel.class.getDeclaredField("entityManager");
+        entityManager.setAccessible(true);
+        Object manager = entityManager.get(level);
+        var unload = manager.getClass().getDeclaredMethod("processChunkUnload", long.class);
+        unload.setAccessible(true);
+        if (!(boolean) unload.invoke(manager, SUMMON_CHUNK.pack())) throw new AssertionError("Chunk entities were not ready to unload");
+    }
+
+    private static void checkAltarRestart(MinecraftServer server) throws Exception {
+        ServerLevel level = server.overworld();
+        level.setChunkForced(0, 0, true);
+        level.getChunkSource().tick(() -> true, false);
+        level.waitForEntities(new ChunkPos(0, 0), 0);
+        altarTick(server);
+        var source = server.createCommandSourceStack().withPermission(PermissionSet.ALL_PERMISSIONS);
+        var dispatcher = server.getCommands().getDispatcher();
+        check(level.getBlockState(new BlockPos(2, 101, 5)).isAir()
+            && dispatcher.execute("amplifieditems altar place kings_decree 13 101 5", source) == 0,
+            "A claimed weapon remains unavailable after an actual server restart");
+        var core = level.getBlockState(new BlockPos(5, 101, 5));
+        int displayCount = altarDisplays(level).size();
+        check(core.is(Blocks.BEDROCK) && displayCount == 2,
+            "An unclaimed altar restores its displays after restart (" + core + ", " + displayCount + " displays)");
+    }
+
+    private static void altarTick(MinecraftServer server) {
+        AmplifiedItems.tick = Math.ceilDiv(AmplifiedItems.tick + 1, 20) * 20 - 1;
+        ServerTickEvents.END_SERVER_TICK.invoker().onEndTick(server);
+    }
+
+    private static List<Entity> altarDisplays(ServerLevel level) {
+        return java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .filter(e -> e.entityTags().contains("amplified_altar_display") && !e.isRemoved()).toList();
+    }
+
+    private static void clickAltar(ServerPlayer player, BlockPos pos) {
+        var hit = new BlockHitResult(Vec3.atCenterOf(pos).add(0, 0.5, 0), Direction.UP, pos, false);
+        player.gameMode.useItemOn(player, player.level(), player.getMainHandItem(), InteractionHand.MAIN_HAND, hit);
     }
 
     private static ItemStack craft(ServerLevel level, CraftingInput input) {
@@ -684,38 +815,23 @@ public final class RuntimeChecks implements ModInitializer {
             .value().assemble(input);
     }
 
-    private static int fillBarrel(BarrelBlockEntity barrel, RitualRecipe recipe, Map<String, ItemStack> special) {
-        barrel.clearContent();
+    private static Map<String, Integer> fillInventory(ServerPlayer player, RitualRecipe recipe, Map<String, ItemStack> special) {
+        var inventory = player.getInventory();
+        inventory.clearContent();
+        var slots = new HashMap<String, Integer>();
         int slot = 0;
         for (var ingredient : recipe.ingredients().entrySet()) {
             ItemStack stack = special.get(ingredient.getKey());
             if (stack == null) stack = new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.parse(ingredient.getKey())));
             if (stack.isEmpty()) throw new AssertionError("Missing " + ingredient.getKey());
+            slots.put(ingredient.getKey(), slot);
             for (int remaining = ingredient.getValue(); remaining > 0;) {
                 int count = Math.min(stack.getMaxStackSize(), remaining);
-                barrel.setItem(slot++, stack.copyWithCount(count));
+                if (slot >= inventory.getNonEquipmentItems().size()) throw new AssertionError("Recipe does not fit in an inventory");
+                inventory.setItem(slot++, stack.copyWithCount(count));
                 remaining -= count;
             }
         }
-        return slot;
+        return slots;
     }
-
-    private static void ritualTick(MinecraftServer server, long tick) {
-        AmplifiedItems.tick = Math.ceilDiv(tick, 20) * 20 - 1;
-        ServerTickEvents.END_SERVER_TICK.invoker().onEndTick(server);
-    }
-
-    private static List<Entity> ritualMobs(ServerLevel level) {
-        return java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
-            .filter(e -> e.entityTags().contains("amplified_ritual_defender") && e.isAlive()).toList();
-    }
-
-    private static void clearWave(ServerLevel level, ServerPlayer owner, List<Entity> wave) {
-        for (Entity mob : wave) {
-            mob.hurtServer(level, level.damageSources().playerAttack(owner), 1000);
-            if (mob.isAlive()) throw new AssertionError("Wave mob resisted lethal damage: " + mob);
-            mob.discard();
-        }
-    }
-
 }

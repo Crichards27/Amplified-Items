@@ -9,7 +9,7 @@ import java.util.*;
 
 public final class WeaponConfig {
     public static final Gson JSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static final int CONFIG_VERSION = 6;
+    private static final int CONFIG_VERSION = 7;
     public int configVersion = CONFIG_VERSION;
     public double executionMultiplier = 1.30;
     public int executionSeconds = 30;
@@ -65,6 +65,8 @@ public final class WeaponConfig {
     public double summonTargetRange = 24;
     public List<String> captureDenylist = new ArrayList<>();
     public boolean allowCapturingOtherPlayersPets = false;
+    public boolean pvpHeadDrops = true;
+    public Map<String, String> altarEventRequirements = new LinkedHashMap<>();
     public boolean resourcePackHostEnabled = false;
     public String resourcePackBindAddress = "0.0.0.0";
     public int resourcePackPort = 8190;
@@ -119,13 +121,16 @@ public final class WeaponConfig {
             }
             config.grappleRange = Math.min(config.grappleRange, MAX_GRAPPLE_RANGE);
             config.weapons.replaceAll(w -> {
-                var ingredients = defaults.weapons.stream().filter(d -> d.id().equals(w.id()))
-                    .findFirst().map(d -> d.ritual().ingredients()).orElse(w.ritual().ingredients());
+                var ingredients = w.ritual().ingredients();
+                if (previousVersion < 6) {
+                    ingredients = defaults.weapons.stream().filter(d -> d.id().equals(w.id()))
+                        .findFirst().map(d -> d.ritual().ingredients()).orElse(ingredients);
+                }
                 var lore = w.lore();
                 if (previousVersion < 5 && lore != null) lore = lore.stream().map(WeaponConfig::abilityLore).toList();
                 return new WeaponDefinition(w.id(), w.name(), w.baseItem(), w.model(), w.primary(), w.secondary(),
                     w.passive(), w.primaryCooldownSeconds(), w.secondaryCooldownSeconds(), lore, w.enabled(),
-                    new RitualRecipe(w.ritual().minutes(), ingredients));
+                    new RitualRecipe(RitualRecipe.withHeadCost(w.id(), ingredients)));
             });
             config.configVersion = CONFIG_VERSION;
             config.validate();
@@ -215,6 +220,11 @@ public final class WeaponConfig {
             if (!Set.of("rulers_authority", "reaper_vitality", "flame_crossbow", "ocean_blessing", "night_cycle", "solar_cycle",
                     "windwalker", "web_phase", "bloodlust", "none").contains(w.passive()))
                 throw new IllegalArgumentException("Unknown passive on " + w.id());
+        }
+        if (altarEventRequirements == null) throw new IllegalArgumentException("altarEventRequirements cannot be null");
+        for (var event : altarEventRequirements.entrySet()) {
+            if (!ids.contains(event.getKey()) || event.getValue() == null || !event.getValue().matches("[a-z0-9_]+"))
+                throw new IllegalArgumentException("Invalid altar event requirement for " + event.getKey());
         }
         if (!resourcePackPublicUrl.isBlank()) {
             var u = java.net.URI.create(resourcePackPublicUrl);

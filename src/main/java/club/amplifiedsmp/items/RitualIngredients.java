@@ -15,7 +15,7 @@ final class RitualIngredients {
 
     static boolean known(String key) {
         return switch (key) {
-            case RitualRecipe.KINGS_CROWN, RitualRecipe.SUNLIGHT, RitualRecipe.POISON_ARROW -> true;
+            case RitualRecipe.KINGS_CROWN, RitualRecipe.SUNLIGHT, RitualRecipe.POISON_ARROW, RitualRecipe.PVP_HEAD -> true;
             default -> !key.equals("minecraft:air") && BuiltInRegistries.ITEM.containsKey(Identifier.parse(key));
         };
     }
@@ -25,11 +25,13 @@ final class RitualIngredients {
             case RitualRecipe.KINGS_CROWN -> Component.literal("King's Crown");
             case RitualRecipe.SUNLIGHT -> Component.literal("Sunlight");
             case RitualRecipe.POISON_ARROW -> Component.literal("Arrow of Poison");
+            case RitualRecipe.PVP_HEAD -> Component.literal("PvP Player Head");
             default -> new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.parse(key))).getHoverName();
         };
     }
 
-    static String key(ItemStack stack, boolean requiresPoison) {
+    static String key(ItemStack stack, boolean requiresPoison, boolean requiresHead) {
+        if (requiresHead && PlayerHeads.isPvPHead(stack)) return RitualRecipe.PVP_HEAD;
         if (requiresPoison && stack.is(Items.TIPPED_ARROW)) {
             PotionContents potion = stack.getOrDefault(DataComponents.POTION_CONTENTS, PotionContents.EMPTY);
             if (potion.is(Potions.POISON) || potion.is(Potions.LONG_POISON) || potion.is(Potions.STRONG_POISON))

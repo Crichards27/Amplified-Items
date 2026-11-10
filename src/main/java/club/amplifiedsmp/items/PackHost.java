@@ -18,8 +18,8 @@ public final class PackHost implements AutoCloseable {
     // Preserve the advertised pack identity for servers upgrading from the initial build.
     public static final UUID ID = UUID.fromString("f8cacdc5-4749-386b-8054-2a92c9a775c2");
     public void start(Path configDir) throws Exception {
-        Path pack = configDir.resolve("amplified-items-resources-1.5.1.zip");
-        try (var in = getClass().getResourceAsStream("/bundled/amplified-items-resources-1.5.1.zip")) {
+        Path pack = configDir.resolve("amplified-items-resources-1.6.1.zip");
+        try (var in = getClass().getResourceAsStream("/bundled/amplified-items-resources-1.6.1.zip")) {
             if (in == null) throw new IllegalStateException("Bundled pack is missing");
             // User edits to this extracted pack survive restarts.
             if (!Files.exists(pack)) Files.copy(in, pack);

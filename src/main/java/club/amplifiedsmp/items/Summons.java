@@ -32,6 +32,7 @@ public final class Summons {
     private final MinecraftServer server;
     private final SummonLedger ledger;
     private final Map<UUID, Active> active = new HashMap<>();
+    private final Set<Entity> pendingLoads = new LinkedHashSet<>();
     public Summons(MinecraftServer server) throws IOException {
         this.server = server;
         ledger = new SummonLedger(server.getWorldPath(LevelResource.ROOT).resolve("data/amplified-items/summons.json"));
@@ -51,7 +52,7 @@ public final class Summons {
             Active a = active.get(entry.entity);
             if (a == null) { Abilities.message(player, "Your summon is in an unloaded chunk. It will recall when loaded."); return false; }
             if (!a.owner.equals(player.getUUID())) { Abilities.message(player, "This summon belongs to another player until recalled."); return false; }
-            recall(a); return true;
+            return recall(a);
         }
         if (entry == null || entry.state == SummonLedger.State.DEAD) {
             LivingEntity target = clicked != null ? clicked : Combat.aimed(player, 5);
@@ -61,12 +62,13 @@ public final class Summons {
         return summon(player, staff, entry);
     }
     private boolean capture(ServerPlayer player, UUID staff, Mob mob) {
-        if (Rituals.isDefender(mob)) {
+        if (mob.entityTags().contains("amplified_ritual_defender")) {
             Abilities.message(player, "Altar defenders cannot be captured.");
             return false;
         }
         if (!mob.isAlive() || mob.isRemoved() || mob.distanceToSqr(player) > 25 || !player.hasLineOfSight(mob)
-                || mob.isPassenger() || mob.isVehicle() || controlled(mob)) {
+                || mob.isPassenger() || mob.isVehicle() || controlled(mob)
+                || ledger.retired(mob.getUUID()) || mob.entityTags().contains("cw_summon")) {
             Abilities.message(player, "That mob cannot be captured here. Dismount it and remove passengers first."); return false;
         }
         if (AmplifiedItems.CONFIG.captureDenylist.contains(BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString())) {
@@ -124,11 +126,22 @@ public final class Summons {
         if (!mob.save(out)) throw new IOException("Mob refused serialization");
         return out.buildResult();
     }
-    private void recall(Active a) {
-        if (!a.mob.isAlive()) { died(a.mob); return; }
+    private boolean recall(Active a) {
+        Mob mob = a.mob;
+        Entity.RemovalReason removal = mob.getRemovalReason();
+        if (mob.isDeadOrDying() || (removal != null && removal.shouldDestroy())) {
+            died(mob);
+            return false;
+        }
+        if (removal != null && removal != Entity.RemovalReason.UNLOADED_TO_CHUNK) {
+            // A dimension transfer or passenger unload can reintroduce the mob under the same UUID.
+            active.remove(mob.getUUID(), a);
+            return false;
+        }
         try {
             var entry = ledger.get(a.staff);
-            CompoundTag saved = snapshot(a.mob);
+            // Minecraft still serializes mobs removed for a chunk unload.
+            CompoundTag saved = snapshot(mob);
             CompoundTag original = TagParser.parseCompoundFully(entry.snapshot);
             saved.putBoolean("NoAI", original.getBooleanOr("NoAI", false));
             saved.putBoolean("PersistenceRequired", original.getBooleanOr("PersistenceRequired", false));
@@ -136,13 +149,19 @@ public final class Summons {
             if (original.contains("Tags")) saved.put("Tags", original.get("Tags").copy());
             ledger.transaction(() -> {
                 entry.snapshot = saved.toString(); entry.state = SummonLedger.State.STORED;
-                ledger.retire(a.mob.getUUID());
+                ledger.retire(mob.getUUID());
             });
-            active.remove(a.mob.getUUID());
-            a.mob.discard();
+            active.remove(mob.getUUID(), a);
+            if (!mob.isRemoved()) mob.discard();
             var owner = server.getPlayerList().getPlayer(a.owner);
             if (owner != null) Abilities.message(owner, "Your surviving summon returned to the staff.");
-        } catch (Exception e) { AmplifiedItems.LOG.error("Cannot recall summon; leaving it active to preserve it", e); }
+            return true;
+        } catch (Exception e) {
+            // If the chunk has already unloaded, the saved entity can retry on its next load.
+            if (mob.isRemoved()) active.remove(mob.getUUID(), a);
+            AmplifiedItems.LOG.error("Cannot recall summon; keeping its active record", e);
+            return false;
+        }
     }
     public void died(LivingEntity entity) {
         Active a = active.remove(entity.getUUID());
@@ -155,26 +174,54 @@ public final class Summons {
         if (owner != null) Abilities.message(owner, "Your summon died. Capture a new mob.");
     }
     public void loaded(Entity entity) {
-        if (ledger.retired(entity.getUUID())) { entity.discard(); return; }
-        if (entity.entityTags().contains("cw_projectile")) { entity.discard(); return; }
-        if (!(entity instanceof Mob mob) || !entity.entityTags().contains("cw_summon") || active.containsKey(entity.getUUID())) return;
-        var entry = ledger.entries().stream().filter(e -> e.entity.equals(entity.getUUID()) && e.state == SummonLedger.State.ACTIVE).findFirst().orElse(null);
-        if (entry == null) { entity.discard(); return; }
-        mob.setNoAi(true);
-        Active a = new Active(entry.staff, mob, entry.owner);
-        active.put(entity.getUUID(), a);
-        // On restart / chunk reload, survivors return before resuming combat.
-        recall(a);
+        if (entity.entityTags().contains("cw_projectile")) {
+            entity.discard();
+        } else if (ledger.retired(entity.getUUID()) || entity.entityTags().contains("cw_summon")) {
+            // Minecraft may be iterating an entity section in this callback.
+            pendingLoads.add(entity);
+        }
+    }
+
+    private void reconcileLoads() {
+        var batch = List.copyOf(pendingLoads);
+        pendingLoads.clear();
+        for (Entity entity : batch) {
+            if (entity.isRemoved()) continue;
+            UUID id = entity.getUUID();
+            if (ledger.retired(id)) {
+                entity.discard();
+                continue;
+            }
+            if (!(entity instanceof Mob mob)) continue;
+            Active current = active.get(id);
+            if (current != null && current.mob == mob) continue;
+            var entry = ledger.entries().stream()
+                .filter(e -> e.entity.equals(id) && e.state == SummonLedger.State.ACTIVE).findFirst().orElse(null);
+            if (entry == null) {
+                mob.discard();
+                continue;
+            }
+            mob.setNoAi(true);
+            Active restored = new Active(entry.staff, mob, entry.owner);
+            active.put(id, restored);
+            recall(restored);
+        }
     }
     public void recallOwner(UUID owner) {
         for (Active a : List.copyOf(active.values())) if (a.owner.equals(owner)) recall(a);
     }
-    public void stop() { for (Active a : List.copyOf(active.values())) recall(a); }
+    public void stop() {
+        reconcileLoads();
+        for (Active a : List.copyOf(active.values())) recall(a);
+    }
     public void tick() {
+        reconcileLoads();
         for (Active a : List.copyOf(active.values())) {
             Mob mob = a.mob;
-            if (!mob.isAlive()) { died(mob); continue; }
-            if (mob.isRemoved()) { active.remove(mob.getUUID()); continue; } // Wait for its load event; never recreate an unloaded mob.
+            if (mob.isRemoved() || mob.isDeadOrDying()) {
+                recall(a);
+                continue;
+            }
             ServerPlayer owner = server.getPlayerList().getPlayer(a.owner);
             if (owner == null || !owner.isAlive() || owner.level() != mob.level() || AmplifiedItems.tick >= a.expires
                     || owner.distanceToSqr(mob) > 80 * 80) { recall(a); continue; }
