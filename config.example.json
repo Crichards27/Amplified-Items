@@ -1,5 +1,5 @@
 {
-  "configVersion": 7,
+  "configVersion": 8,
   "executionMultiplier": 1.3,
   "executionSeconds": 30,
   "executionRange": 24.0,
@@ -308,7 +308,7 @@
     {
       "id": "bloodfang",
       "name": "BloodFang",
-      "baseItem": "minecraft:netherite_sword",
+      "baseItem": "minecraft:netherite_axe",
       "model": "amplified_items:bloodfang",
       "primary": "blood_rush",
       "secondary": "crimson_cleave",

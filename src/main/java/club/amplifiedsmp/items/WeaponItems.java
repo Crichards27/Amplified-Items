@@ -6,7 +6,10 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.component.ItemLore;
 import java.util.*;
@@ -58,6 +61,15 @@ public final class WeaponItems {
     static String weaponId(ItemStack stack) {
         CustomData custom = stack.get(DataComponents.CUSTOM_DATA);
         return custom == null ? "" : custom.copyTag().getStringOr("cw_weapon", "");
+    }
+
+    static void upgradeHeldBloodFang(ServerPlayer player, InteractionHand hand) {
+        ItemStack stack = player.getItemInHand(hand);
+        if (!stack.is(Items.NETHERITE_SWORD) || !weaponId(stack).equals("bloodfang")) return;
+        WeaponDefinition weapon = AmplifiedItems.CONFIG.enabledWeapon("bloodfang");
+        if (weapon != null && weapon.baseItem().equals("minecraft:netherite_axe")) {
+            player.setItemInHand(hand, stack.transmuteCopy(Items.NETHERITE_AXE));
+        }
     }
 
     static void updateControls(ItemStack stack) {

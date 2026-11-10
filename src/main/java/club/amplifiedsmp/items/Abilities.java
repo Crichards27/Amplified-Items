@@ -260,6 +260,8 @@ public final class Abilities {
         TIDES.removeIf(wave -> !wave.advance());
         MeleeAbilities.tick();
         for (var p : server.getPlayerList().getPlayers()) {
+            WeaponItems.upgradeHeldBloodFang(p, InteractionHand.MAIN_HAND);
+            WeaponItems.upgradeHeldBloodFang(p, InteractionHand.OFF_HAND);
             PlayerAbilities.tick(p);
             if (AmplifiedItems.tick % 20 == 0) {
                 WeaponItems.updateControls(p.getMainHandItem());

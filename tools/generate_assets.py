@@ -143,8 +143,13 @@ def generate(client):
           "441d17 823324 b45426 f3932c", {(11, 4): "fff3a7", (10, 5): "ffe16b", (5, 10): "fff2a0"})
     sword(client, "spiders_bane", "19261c 2f4231 4f673f 718e56 7fa35d c7dcb1 e9f0df",
           "242826 444d3d 657350 99a889", {(10, 5): "a2d645", (9, 6): "cbef74", (5, 10): "d1f478"})
-    sword(client, "bloodfang", "310c19 591229 812238 a53045 c54058 ea7381 ffb6ad",
-          "21111b 48212d 792b39 aa4050", {(12, 3): "f77f83", (9, 6): "ff9494", (5, 10): "ff6573"})
+    axe = retexture(vanilla_sprite(client, "netherite_axe"), colors(
+        [(35, 16, 18), (47, 33, 34), (74, 41, 64), (79, 60, 62), (96, 52, 50), (115, 69, 67),
+         (50, 39, 39), (59, 57, 59), (67, 64, 67), (93, 86, 93), (112, 103, 112), (134, 123, 134)],
+        "310c19 48212d 591229 812238 792b39 aa4050 591229 9a283e a53045 c54058 ea7381 ffb6ad",
+    ))
+    write_sprite("bloodfang", axe)
+    write_definition("bloodfang", model_ref("bloodfang"))
 
     trident = retexture(vanilla_sprite(client, "trident"), colors(
         [(22, 71, 57), (46, 94, 80), (64, 121, 105), (88, 157, 142),

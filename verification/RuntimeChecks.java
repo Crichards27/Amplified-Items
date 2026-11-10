@@ -76,8 +76,9 @@ public final class RuntimeChecks implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
             try {
                 if (Boolean.getBoolean("amplified.verifyRestart")) {
-                    checkAltarRestart(server);
+                    // Check the parked summon before the altar check drives an end-of-server tick.
                     checkStaffRestart(server);
+                    checkAltarRestart(server);
                 } else run(server);
                 System.out.println("AMPLIFIED_RUNTIME_OK " + checks);
             }
@@ -328,6 +329,19 @@ public final class RuntimeChecks implements ModInitializer {
         var wind = weapon("windwalker");
         var spider = weapon("spiders_bane");
         var blood = weapon("bloodfang");
+        var oldBlood = blood.transmuteCopy(Items.NETHERITE_SWORD);
+        oldBlood.set(DataComponents.CUSTOM_NAME, Component.literal("Named BloodFang"));
+        var sword = new ItemStack(Items.NETHERITE_SWORD);
+        owner.setItemInHand(InteractionHand.MAIN_HAND, oldBlood);
+        owner.setItemInHand(InteractionHand.OFF_HAND, sword);
+        Abilities.tick(server);
+        var upgraded = owner.getMainHandItem();
+        check(blood.is(Items.NETHERITE_AXE) && upgraded.is(Items.NETHERITE_AXE)
+            && WeaponItems.definition(blood).equals(WeaponItems.definition(upgraded))
+            && WeaponItems.instance(blood).equals(WeaponItems.instance(upgraded))
+            && "Named BloodFang".equals(upgraded.getHoverName().getString())
+            && owner.getOffhandItem() == sword, "Holding a legacy BloodFang converts it to an axe and preserves its identity and name");
+        owner.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
         var clock = level.registryAccess().lookupOrThrow(Registries.WORLD_CLOCK).getOrThrow(WorldClocks.OVERWORLD);
         level.clockManager().setTotalTicks(clock, 14000);
         AmplifiedItems.tick = 3000;
@@ -679,6 +693,9 @@ public final class RuntimeChecks implements ModInitializer {
                 .filter(stack -> weapon.equals(WeaponItems.definition(stack))).toList();
             check(rewards.size() == 1 && level.getBlockState(core).isAir() && lastClaim.contains(weapon.name()),
                 "Claiming " + weapon.name() + " awards one weapon, consumes the altar, and announces the winner");
+            if (weapon.id().equals("bloodfang")) {
+                check(rewards.getFirst().is(Items.NETHERITE_AXE), "The BloodFang altar awards a netherite axe");
+            }
             if (weapon.id().equals("kings_decree")) {
                 check(owner.getInventory().countItem(Items.NETHERITE_INGOT) == 1
                     && owner.getInventory().countItem(Items.PLAYER_HEAD) == 0, "The claim charges the exact recipe and leaves surplus materials");

@@ -46,15 +46,15 @@ public final class LogicChecks {
             oldV3.getAsJsonArray("weapons").get(1).getAsJsonObject().addProperty("enabled", false);
             Path v3Path = root.resolve("config/v3.json");
             Files.writeString(v3Path, WeaponConfig.JSON.toJson(oldV3));
-            var v7 = WeaponConfig.load(v3Path);
-            check(v7.configVersion == 7 && v7.grappleRange == 16, "Old grapple ranges are clamped during migration");
-            check(v7.enabledWeapon("kings_decree").ritual().ingredients().get(RitualRecipe.PVP_HEAD) == 2 && v7.enabledWeapon("venombolt") == null,
+            var fromV3 = WeaponConfig.load(v3Path);
+            check(fromV3.configVersion == 8 && fromV3.grappleRange == 16, "Old grapple ranges are clamped during migration");
+            check(fromV3.enabledWeapon("kings_decree").ritual().ingredients().get(RitualRecipe.PVP_HEAD) == 2 && fromV3.enabledWeapon("venombolt") == null,
                 "Legacy weapons get rituals and enabled defaults while explicit disables survive");
-            check(v7.enabledWeapon("kings_decree").lore().equals(List.of("summon / recall", "Custom note")), "Control lore migrates");
+            check(fromV3.enabledWeapon("kings_decree").lore().equals(List.of("summon / recall", "Custom note")), "Control lore migrates");
             check(WeaponConfig.abilityLore("Sneak + F: Execution").equals("Execution")
                 && WeaponConfig.abilityLore("Tap right-click: Slow Falling").equals("Tap right-click: Slow Falling"),
                 "Legacy menu lore changes while vanilla use instructions remain");
-            v7.grappleRange = 17; reject(v7::validate);
+            fromV3.grappleRange = 17; reject(fromV3::validate);
             reject(() -> new RitualRecipe(Map.of("minecraft:diamond", 0)).validate("test"));
             var oldV5 = WeaponConfig.JSON.toJsonTree(config).getAsJsonObject();
             oldV5.addProperty("configVersion", 5);
@@ -79,6 +79,19 @@ public final class LogicChecks {
                 "An existing custom ingredient list gains only the new head cost");
             check(altarUpgrade.weapons.stream().filter(w -> w.ritual().ingredients().containsKey(RitualRecipe.PVP_HEAD)).count() == 6,
                 "Six built-in recipes require PvP heads");
+            var oldV7 = WeaponConfig.JSON.toJsonTree(new WeaponConfig()).getAsJsonObject();
+            oldV7.addProperty("configVersion", 7);
+            var oldBloodFang = oldV7.getAsJsonArray("weapons").asList().stream()
+                .map(entry -> entry.getAsJsonObject()).filter(entry -> entry.get("id").getAsString().equals("bloodfang"))
+                .findFirst().orElseThrow();
+            oldBloodFang.addProperty("baseItem", "minecraft:netherite_sword");
+            var customRecipe = new RitualRecipe(Map.of("minecraft:netherite_axe", 2));
+            oldBloodFang.add("ritual", WeaponConfig.JSON.toJsonTree(customRecipe));
+            Path v7Path = root.resolve("config/v7.json");
+            Files.writeString(v7Path, WeaponConfig.JSON.toJson(oldV7));
+            var upgradedBloodFang = WeaponConfig.load(v7Path).enabledWeapon("bloodfang");
+            check(upgradedBloodFang.baseItem().equals("minecraft:netherite_axe")
+                && upgradedBloodFang.ritual().equals(customRecipe), "BloodFang upgrades to an axe and keeps its configured recipe");
             var timers=new Timers(); UUID p=UUID.randomUUID(), other=UUID.randomUUID();
             timers.start(p,"execution",100,45);
             check(timers.remaining(p,"execution",100)==900,"45 second cooldown in ticks");

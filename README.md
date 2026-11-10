@@ -7,13 +7,13 @@ Ten custom weapons for AmplifiedSMP on **Minecraft Java 26.3**. The mod runs on 
 ## Install
 
 1. Use **Java 25**, **Fabric Loader 0.20.1 or later**, and **Fabric API 0.165.2+26.3** or a newer Fabric API build for Minecraft 26.3.
-2. Put `amplified-items-1.6.1.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
+2. Put `amplified-items-1.6.2.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
 3. Start the server once to create or update `config/amplified-items/config.json`.
 4. Set up the resource pack, then restart the server. Players should accept the pack when they join.
 
 ### Resource pack
 
-Upload `amplified-items-resources-1.6.1.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
+Upload `amplified-items-resources-1.6.2.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
 
 To host the pack through the mod instead, open TCP port `8190` and edit these keys in the existing config. Replace `YOUR_SERVER_IP` with your server’s public address.
 
@@ -38,11 +38,16 @@ Use **sneak + right-click** for normal item actions, such as drawing a bow or lo
 
 ## Craft a weapon
 
-1. Find an admin-placed bedrock altar. Its floating weapon preview shows the reward, and the text above it lists the ingredients.
-2. Gather the recipe in your main inventory or hotbar. Six default recipes use [PvP player heads](#pvp-player-heads).
-3. Right-click the bedrock in Survival or Adventure mode. The altar takes the exact recipe, puts the weapon in your inventory, and disappears. A visual lightning strike and a server announcement mark the claim.
+1. Find a bedrock altar placed by an admin. The floating item shows the reward. The text above it lists the recipe.
+2. Bring the ingredients in your main inventory or hotbar. Six default recipes use [PvP player heads](#pvp-player-heads). For BloodFang, check the recipe with `/amplifieditems altar recipe bloodfang`.
 
-Each weapon can be claimed once per world save. Claims and unclaimed altars survive restarts. Check a recipe anywhere with `/amplifieditems altar recipe <weapon>`.
+   ![Illustration of the BloodFang altar with its ingredient list, floating axe preview, and bedrock core](docs/altars/bloodfang-altar.png)
+
+3. Right-click the **bedrock block** in Survival or Adventure mode. The altar takes the required ingredients and puts the weapon in your inventory. The altar disappears, lightning flashes, and the server announces who claimed it.
+
+   ![Illustration of a successful BloodFang claim showing the announcement, lightning, and axe in the hotbar](docs/altars/bloodfang-claim.png)
+
+Each weapon can be claimed once per world save. Claims and unclaimed altars survive restarts.
 
 ## PvP player heads
 
@@ -176,7 +181,7 @@ A blade that lets you move through cobwebs and build a poison combo.
 
 ![BloodFang model preview](docs/items/bloodfang.png)
 
-A melee sword that builds rage through successful hits.
+A netherite axe that builds rage through successful hits. If you have a BloodFang sword from an older release, hold it to convert it to an axe.
 
 - **Blood Rush.** Grants Speed II and Strength I for eight seconds.
 - **Crimson Cleave.** Swings through enemies in front of you, dealing three hearts of damage.
@@ -206,7 +211,11 @@ Craft for SolarBlade using **1 glowstone block, 1 blaze powder, and 1 gold ingot
 
 ## Admin setup
 
-Run `/amplifieditems altar place venombolt ~ ~ ~2` to place a VenomBolt altar at an empty block two blocks south. Use any enabled weapon ID and coordinates. Keep the space above the core clear for the display. Only operators can manage altars.
+Stand near an empty spot and run the command below as an operator. It places the BloodFang altar two blocks south of you in your current dimension. Keep the space above the bedrock clear for the floating preview and recipe. Use a different enabled weapon ID and coordinates to place other altars.
+
+```mcfunction
+/amplifieditems altar place bloodfang ~ ~ ~2
+```
 
 | Command | Use |
 |---|---|

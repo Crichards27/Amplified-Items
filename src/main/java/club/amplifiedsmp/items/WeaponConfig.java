@@ -9,7 +9,7 @@ import java.util.*;
 
 public final class WeaponConfig {
     public static final Gson JSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static final int CONFIG_VERSION = 7;
+    private static final int CONFIG_VERSION = 8;
     public int configVersion = CONFIG_VERSION;
     public double executionMultiplier = 1.30;
     public int executionSeconds = 30;
@@ -100,7 +100,7 @@ public final class WeaponConfig {
         new WeaponDefinition("spiders_bane", "Spider's Bane", "minecraft:diamond_sword", "amplified_items:spiders_bane",
             "crit_combo", "web_grapple", "web_phase", 30, 5,
             List.of("Land 5 crits on one target: Poison II", "Web Grapple", "Walk through cobwebs at normal speed.")),
-        new WeaponDefinition("bloodfang", "BloodFang", "minecraft:netherite_sword", "amplified_items:bloodfang",
+        new WeaponDefinition("bloodfang", "BloodFang", "minecraft:netherite_axe", "amplified_items:bloodfang",
             "blood_rush", "crimson_cleave", "bloodlust", 20, 12,
             List.of("Blood Rush", "Crimson Cleave", "Land 5 hits for a temporary damage boost."))
     ));
@@ -128,9 +128,14 @@ public final class WeaponConfig {
                 }
                 var lore = w.lore();
                 if (previousVersion < 5 && lore != null) lore = lore.stream().map(WeaponConfig::abilityLore).toList();
-                return new WeaponDefinition(w.id(), w.name(), w.baseItem(), w.model(), w.primary(), w.secondary(),
+                if (previousVersion < 7) ingredients = RitualRecipe.withHeadCost(w.id(), ingredients);
+                String baseItem = w.baseItem();
+                if (previousVersion < 8 && w.id().equals("bloodfang") && baseItem.equals("minecraft:netherite_sword")) {
+                    baseItem = "minecraft:netherite_axe";
+                }
+                return new WeaponDefinition(w.id(), w.name(), baseItem, w.model(), w.primary(), w.secondary(),
                     w.passive(), w.primaryCooldownSeconds(), w.secondaryCooldownSeconds(), lore, w.enabled(),
-                    new RitualRecipe(RitualRecipe.withHeadCost(w.id(), ingredients)));
+                    new RitualRecipe(ingredients));
             });
             config.configVersion = CONFIG_VERSION;
             config.validate();
