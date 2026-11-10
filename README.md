@@ -7,13 +7,13 @@ Ten custom weapons for AmplifiedSMP on **Minecraft Java 26.3**. The mod runs on 
 ## Install
 
 1. Use **Java 25**, **Fabric Loader 0.20.1 or later**, and **Fabric API 0.165.2+26.3** or a newer Fabric API build for Minecraft 26.3.
-2. Put `amplified-items-1.5.0.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
+2. Put `amplified-items-1.5.1.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
 3. Start the server once to create or update `config/amplified-items/config.json`.
 4. Set up the resource pack, then restart the server. Players should accept the pack when they join.
 
 ### Resource pack
 
-Upload `amplified-items-resources-1.5.0.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
+Upload `amplified-items-resources-1.5.1.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
 
 To host the pack through the mod instead, open TCP port `8190` and edit these keys in the existing config. Replace `YOUR_SERVER_IP` with your server’s public address.
 
@@ -48,7 +48,9 @@ Use `/amplifieditems ritual status` to check the timer. Logging out or restartin
 
 ## Weapons
 
-The descriptions and ritual times below use the default 1.5.0 settings. Damage values are before armor and other protection unless noted.
+![Amplified Items weapon and ingredient sprites](docs/weapons.png)
+
+The descriptions and ritual times below use the default settings. Damage values are before armor and other protection unless noted.
 
 ### King’s Decree
 
@@ -63,7 +65,7 @@ A royal staff that stores and summons a mob to fight for you.
 **15-minute altar ritual.** 1 [King’s Crown](#kings-crown), 8 netherite ingots, 16 diamond blocks, 1 nether star.  
 **Weapon ID:** `kings_decree`
 
-> **1.5.0 known issue.** If a living summon’s chunk unloads while it’s active, the staff can record it as dead.
+> **Known issue.** If a living summon’s chunk unloads while it’s active, the staff can record it as dead.
 
 ### VenomBolt
 
@@ -219,6 +221,8 @@ Craft for SolarBlade using **1 glowstone block, 1 blaze powder, and 1 gold ingot
 ## Add a weapon
 
 Copy an entry in the `weapons` array and give it a unique `id`. Set its name, base item, model, abilities, cooldowns, and ritual. See [the example weapon](examples/royal-harpoon.json) and [the example config](config.example.json). Put the item definition, model, and textures in `resourcepack/`. To write a new active ability, add its Java handler in `Abilities.init()`.
+
+The vanilla-style weapon art uses 16×16 sprites. To regenerate it with Pillow installed, run `python3 tools/generate_assets.py /path/to/minecraft-26.3-client.jar`.
 
 ## Build from source
 

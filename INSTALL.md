@@ -2,7 +2,7 @@
 
 For AmplifiedSMP on Minecraft Java 26.3. The server needs Java 25, Fabric Loader 0.20.1 or later, and Fabric API for 26.3. Players can join with vanilla Minecraft.
 
-1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.5.0.jar`.
+1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.5.1.jar`.
 2. Start the server. It updates `config/amplified-items/config.json`.
 3. Accept the server resource pack in Minecraft to see the custom textures.
 
@@ -74,4 +74,4 @@ If the server already sends the Amplified Items pack, you can keep using it. To 
 }
 ```
 
-Restart after editing. For external hosting, upload `amplified-items-resources-1.5.0.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.
+Restart after editing. For external hosting, upload `amplified-items-resources-1.5.1.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.
