@@ -7,13 +7,13 @@ Ten custom weapons for AmplifiedSMP on **Minecraft Java 26.3**. The mod runs on 
 ## Install
 
 1. Use **Java 25**, **Fabric Loader 0.20.1 or later**, and **Fabric API 0.165.2+26.3** or a newer Fabric API build for Minecraft 26.3.
-2. Put `amplified-items-1.5.1.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
+2. Put `amplified-items-1.6.1.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
 3. Start the server once to create or update `config/amplified-items/config.json`.
 4. Set up the resource pack, then restart the server. Players should accept the pack when they join.
 
 ### Resource pack
 
-Upload `amplified-items-resources-1.5.1.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
+Upload `amplified-items-resources-1.6.1.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
 
 To host the pack through the mod instead, open TCP port `8190` and edit these keys in the existing config. Replace `YOUR_SERVER_IP` with your server’s public address.
 
@@ -32,25 +32,27 @@ If you already distribute the pack through `server.properties`, set its URL and 
 
 1. Hold a weapon in your main hand and press **F** to open its ability menu. If you rebound **Swap Item With Offhand**, press that key.
 2. Click the ability you want. The menu closes and saves your choice for that weapon.
-3. **Right-click** to cast the selected ability. The first available ability is selected by default.
+3. **Right-click** to cast the selected ability. The first available ability is selected by default. Its active cooldown appears in a boss bar while you hold the weapon.
 
 Use **sneak + right-click** for normal item actions, such as drawing a bow or loading a crossbow. You can also select **Normal item use** in the menu.
 
 ## Craft a weapon
 
-1. Make a flat **3×3 altar** with a **barrel in the center** and eight **chiseled stone bricks** around it. Leave open ground 6–12 blocks away so husks can spawn. Use a difficulty above Peaceful.
-2. Put the weapon’s ingredients in the barrel. Each weapon’s recipe is listed below and is also available through `/amplifieditems ritual recipe <weapon>`.
-3. Aim at the top of the barrel and run `/amplifieditems ritual start <weapon>`. For example, use `/amplifieditems ritual start venombolt` for VenomBolt. The server announces the altar coordinates.
-4. Stay alive within **24 blocks** and defend the altar. Husks spawn every minute. Keep the altar and ingredients intact and clear the husks before the timer ends. Other players can help fight.
-5. Collect the forged weapon from the barrel. The recipe ingredients are consumed when the ritual succeeds.
+1. Find an admin-placed bedrock altar. Its floating weapon preview shows the reward, and the text above it lists the ingredients.
+2. Gather the recipe in your main inventory or hotbar. Six default recipes use [PvP player heads](#pvp-player-heads).
+3. Right-click the bedrock in Survival or Adventure mode. The altar takes the exact recipe, puts the weapon in your inventory, and disappears. A visual lightning strike and a server announcement mark the claim.
 
-Use `/amplifieditems ritual status` to check the timer. Logging out or restarting the server ends the ritual. Ingredients still in the barrel can be used again.
+Each weapon can be claimed once per world save. Claims and unclaimed altars survive restarts. Check a recipe anywhere with `/amplifieditems altar recipe <weapon>`.
+
+## PvP player heads
+
+When a player directly kills another player in Survival or Adventure mode with PvP enabled, the defeated player drops a head with their profile. This includes player-fired projectiles. Environmental deaths yield no head. Recipes labeled **PvP Player Head** accept these drops. Heads from other sources have their own vanilla item ID in recipes.
 
 ## Weapons
 
 ![Amplified Items weapon and ingredient sprites](docs/weapons.png)
 
-The descriptions and ritual times below use the default settings. Damage values are before armor and other protection unless noted.
+The descriptions and recipes below use the default settings. Damage values are before armor and other protection unless noted.
 
 ### King’s Decree
 
@@ -62,10 +64,10 @@ A royal staff that stores and summons a mob to fight for you.
 - **Execution.** Marks an enemy player for 30 seconds, increasing incoming enemy damage by 30%.
 - **Ruler’s Authority.** Reduces incoming damage by 10% when at least three other players are within 12 blocks.
 
-**15-minute altar ritual.** 1 [King’s Crown](#kings-crown), 8 netherite ingots, 16 diamond blocks, 1 nether star.  
+**Altar recipe.** 1 [King’s Crown](#kings-crown), 8 netherite ingots, 16 diamond blocks, 1 nether star, 2 PvP player heads.  
 **Weapon ID:** `kings_decree`
 
-> **Known issue.** If a living summon’s chunk unloads while it’s active, the staff can record it as dead.
+> **Staff update.** A living summon returns to the staff with its current health when its chunk unloads.
 
 ### VenomBolt
 
@@ -76,7 +78,7 @@ A poison crossbow with a grappling bolt.
 - **VenomShot.** Fires an arrow that deals splash damage and applies Poison II for 10 seconds.
 - **GrappleHook.** Pulls you toward a block or pulls a target toward you. The bolt reaches up to 16 blocks.
 
-**15-minute altar ritual.** 32 iron blocks, 16 arrows of poison, 3 skeleton skulls, 8 crossbows. Regular, extended, and stronger arrows of poison all count.  
+**Altar recipe.** 32 iron blocks, 16 arrows of poison, 3 skeleton skulls, 8 crossbows, 1 PvP player head. Regular, extended, and stronger arrows of poison all count.  
 **Weapon ID:** `venombolt`
 
 ### Reaper’s Edge
@@ -89,7 +91,7 @@ A scythe that drains health and hides its wielder.
 - **Shadow Step.** Hides you, your armor, and your held items for six seconds.
 - **Passive.** Holding the weapon raises your default maximum to 15 hearts and grants Speed I at full health.
 
-**30-minute altar ritual.** 3 wither skeleton skulls, 1 nether star, 16 echo shards, 64 gold blocks, 4 netherite ingots, 2 netherite hoes.  
+**Altar recipe.** 3 wither skeleton skulls, 1 nether star, 16 echo shards, 64 gold blocks, 4 netherite ingots, 2 netherite hoes, 3 PvP player heads.  
 **Weapon ID:** `reapers_edge`
 
 ### SunPiercer
@@ -102,7 +104,7 @@ A fire crossbow with an explosive secondary shot.
 - **Solar Flare.** Fires an arrow that bursts on impact, damaging nearby enemies and blinding them for five seconds. The burst leaves blocks intact.
 - **Flame Crossbow.** Normal shots fire flaming arrows.
 
-**15-minute altar ritual.** 3 crossbows, 64 gold blocks, 32 diamond blocks, 4 netherite ingots, 64 blaze rods, 32 magma cream.  
+**Altar recipe.** 3 crossbows, 64 gold blocks, 32 diamond blocks, 4 netherite ingots, 64 blaze rods, 32 magma cream.  
 **Weapon ID:** `sunpiercer`
 
 ### Leviathan’s Wrath
@@ -115,7 +117,7 @@ A trident that sends out a wave and lets you dash on dry land.
 - **Riptide.** Dashes without water. Right-click again to dash during the 10-second window, up to once per second.
 - **Passive.** Grants Water Breathing and Dolphin’s Grace while you hold it in water.
 
-**30-minute altar ritual.** 1 trident, 64 prismarine, 64 dark prismarine, 16 nautilus shells, 1 heart of the sea, 32 diamond blocks.  
+**Altar recipe.** 1 trident, 64 prismarine, 64 dark prismarine, 16 nautilus shells, 1 heart of the sea, 32 diamond blocks.  
 **Weapon ID:** `leviathans_wrath`
 
 ### NightBlade
@@ -128,7 +130,7 @@ A sword that grows stronger at night and lets you vanish in combat.
 - **HollowMoon.** Grants Speed III and Strength II for 15 seconds.
 - **Passive.** Gives Strength I and Speed II at night, and Weakness I and Slowness I by day. Night Vision stays active while held.
 
-**30-minute altar ritual.** 4 netherite ingots, 16 diamond blocks, 3 skeleton skulls, 2 netherite swords, 16 sculk shriekers, 32 sculk catalysts.  
+**Altar recipe.** 4 netherite ingots, 16 diamond blocks, 3 skeleton skulls, 2 netherite swords, 16 sculk shriekers, 32 sculk catalysts, 2 PvP player heads.  
 **Weapon ID:** `nightblade`
 
 ### SolarBlade
@@ -141,7 +143,7 @@ A sword that sweeps enemies with fire and gains strength in daylight.
 - **Sunflare.** Calls a ray of fire around you that deals two hearts to nearby enemies, sets them on fire, and knocks them back.
 - **Passive.** Gives Speed I and Strength I by day, and Weakness I, Slowness I, and Resistance I at night.
 
-**30-minute altar ritual.** 64 magma cream, 64 blaze rods, 32 diamond blocks, 8 netherite ingots, 6 skeleton skulls, 1 [Sunlight](#sunlight).  
+**Altar recipe.** 64 magma cream, 64 blaze rods, 32 diamond blocks, 8 netherite ingots, 6 skeleton skulls, 1 [Sunlight](#sunlight), 2 PvP player heads.  
 **Weapon ID:** `solarblade`
 
 ### WindWalker
@@ -154,7 +156,7 @@ A bow that creates space and supplies its own arrows.
 - **Updraft.** Grants Speed II and Jump Boost II for eight seconds.
 - **Passive.** Hold and release normal use to fire without ammo. Tap normal use to toggle Slow Falling. Use sneak + right-click or select **Normal item use** from the menu.
 
-**15-minute altar ritual.** 128 wind charges, 64 breeze rods, 16 Guster Banner Patterns, 32 Flow Armor Trim Smithing Templates, 4 netherite ingots, 64 iron blocks.  
+**Altar recipe.** 128 wind charges, 64 breeze rods, 16 Guster Banner Patterns, 32 Flow Armor Trim Smithing Templates, 4 netherite ingots, 64 iron blocks.  
 **Weapon ID:** `windwalker`
 
 ### Spider’s Bane
@@ -167,7 +169,7 @@ A blade that lets you move through cobwebs and build a poison combo.
 - **Web Grapple.** Shoots a web that pulls you toward a block or pulls a target toward you, up to 16 blocks.
 - **Passive.** Cobwebs leave your movement speed unaffected while you hold the blade.
 
-**15-minute altar ritual.** 256 cobwebs, 48 iron blocks, 6 netherite ingots, 2 tridents, 32 diamond blocks.  
+**Altar recipe.** 256 cobwebs, 48 iron blocks, 6 netherite ingots, 2 tridents, 32 diamond blocks.  
 **Weapon ID:** `spiders_bane`
 
 ### BloodFang
@@ -180,7 +182,7 @@ A melee sword that builds rage through successful hits.
 - **Crimson Cleave.** Swings through enemies in front of you, dealing three hearts of damage.
 - **Bloodlust.** Five successful hits build enough rage for a 20% damage boost for six seconds.
 
-**30-minute altar ritual.** 128 redstone blocks, 6 netherite ingots, 2 netherite axes, 64 powered rails, 1 nether star.  
+**Altar recipe.** 128 redstone blocks, 6 netherite ingots, 2 netherite axes, 64 powered rails, 1 nether star, 3 PvP player heads.  
 **Weapon ID:** `bloodfang`
 
 ## Special ingredients
@@ -202,21 +204,28 @@ Craft in a crafting table for King’s Decree. It uses the vanilla golden helmet
 
 Craft for SolarBlade using **1 glowstone block, 1 blaze powder, and 1 gold ingot** in any arrangement. It uses the vanilla glowstone dust appearance.
 
-## Server settings
+## Admin setup
 
-- Edit `config/amplified-items/config.json` to change balance and cooldowns. Two health points equal one heart. Cooldowns and effect durations use seconds.
-- Set a weapon’s `enabled` field to `false` to disable its abilities, passive, ritual recipe, and operator give command.
-- Change its `ritual` section to edit ingredients or choose a 15- or 30-minute timer. Upgrading to 1.5.0 updates the ten built-in ingredient lists and preserves configured ritual times and recipes for additional weapons.
-- Run `/amplifieditems reload` to apply gameplay settings. Restart for resource pack hosting changes.
+Run `/amplifieditems altar place venombolt ~ ~ ~2` to place a VenomBolt altar at an empty block two blocks south. Use any enabled weapon ID and coordinates. Keep the space above the core clear for the display. Only operators can manage altars.
 
 | Command | Use |
 |---|---|
-| `/amplifieditems list` | List enabled weapon IDs. |
-| `/amplifieditems status` | Check the held weapon and selected ability. |
-| `/amplifieditems ritual recipe <weapon>` | Show a ritual’s ingredients and timer. |
-| `/amplifieditems ritual start <weapon>` | Start the ritual while aiming at the altar. |
-| `/amplifieditems ritual status` | Check your active ritual. |
-| `/amplifieditems give @s venombolt` | Give yourself VenomBolt as an operator. Replace the ID to give another weapon. |
+| `/amplifieditems altar place <weapon> <x> <y> <z>` | Place one bedrock altar for a weapon in the current dimension. |
+| `/amplifieditems altar list` | See registered altars, claimed weapons, and open events. |
+| `/amplifieditems altar remove <weapon>` | Remove the altar while its chunk is loaded. Any claim stays recorded. |
+| `/amplifieditems altar reset <weapon>` | Reopen the claim and restore its registered altar. Use an empty block at the site. Collect old copies separately before a new arc. |
+| `/amplifieditems altar event <event> open` | Open an event. Use `close` to lock its altars again. |
+| `/amplifieditems give @s venombolt` | Give yourself a test weapon through the operator command. This bypasses the altar limit. |
+
+Edit `config/amplified-items/config.json` and run `/amplifieditems reload` to apply gameplay settings.
+
+- Set `pvpHeadDrops` to `false` to turn off head drops. Adjust the recipes separately if you still want those altars claimable without PvP heads.
+- Set a weapon's `enabled` field to `false` to disable its abilities, passive, altar, and operator give command.
+- Edit its `ritual.ingredients` map to change the recipe. Use `amplified_items:pvp_head` for PvP heads. The 1.6.0 config upgrade adds default head costs to six recipes and preserves the other ingredients from 1.5.0 or later.
+- Edit `altarEventRequirements` to lock an existing weapon behind an event. For example, use `"altarEventRequirements": {"nightblade": "vampire_event"}`, then open `vampire_event` in-game. Event IDs use lowercase letters, numbers, and underscores. No event gates are configured by default.
+- Claim records, registered sites, and event state are stored in the world’s `data/amplified-items/altars.json`. Keep that file with your world backup. Player-built barrel rituals from older releases give way to admin-placed altars.
+
+Players can use `/amplifieditems list` for enabled weapon IDs, `/amplifieditems status` for their held weapon and selected ability, and `/amplifieditems altar recipe <weapon>` to see the recipe.
 
 ## Add a weapon
 

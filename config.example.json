@@ -1,5 +1,5 @@
 {
-  "configVersion": 6,
+  "configVersion": 7,
   "executionMultiplier": 1.3,
   "executionSeconds": 30,
   "executionRange": 24.0,
@@ -53,6 +53,8 @@
   "summonTargetRange": 24.0,
   "captureDenylist": [],
   "allowCapturingOtherPlayersPets": false,
+  "pvpHeadDrops": true,
+  "altarEventRequirements": {},
   "resourcePackHostEnabled": false,
   "resourcePackBindAddress": "0.0.0.0",
   "resourcePackPort": 8190,
@@ -76,12 +78,12 @@
       ],
       "enabled": true,
       "ritual": {
-        "minutes": 15,
         "ingredients": {
           "amplified_items:kings_crown": 1,
           "minecraft:netherite_ingot": 8,
           "minecraft:diamond_block": 16,
-          "minecraft:nether_star": 1
+          "minecraft:nether_star": 1,
+          "amplified_items:pvp_head": 2
         }
       }
     },
@@ -102,12 +104,12 @@
       ],
       "enabled": true,
       "ritual": {
-        "minutes": 15,
         "ingredients": {
           "minecraft:iron_block": 32,
           "amplified_items:poison_arrow": 16,
           "minecraft:skeleton_skull": 3,
-          "minecraft:crossbow": 8
+          "minecraft:crossbow": 8,
+          "amplified_items:pvp_head": 1
         }
       }
     },
@@ -128,14 +130,14 @@
       ],
       "enabled": true,
       "ritual": {
-        "minutes": 30,
         "ingredients": {
           "minecraft:wither_skeleton_skull": 3,
           "minecraft:nether_star": 1,
           "minecraft:echo_shard": 16,
           "minecraft:gold_block": 64,
           "minecraft:netherite_ingot": 4,
-          "minecraft:netherite_hoe": 2
+          "minecraft:netherite_hoe": 2,
+          "amplified_items:pvp_head": 3
         }
       }
     },
@@ -156,7 +158,6 @@
       ],
       "enabled": true,
       "ritual": {
-        "minutes": 15,
         "ingredients": {
           "minecraft:crossbow": 3,
           "minecraft:gold_block": 64,
@@ -184,7 +185,6 @@
       ],
       "enabled": true,
       "ritual": {
-        "minutes": 30,
         "ingredients": {
           "minecraft:trident": 1,
           "minecraft:prismarine": 64,
@@ -212,14 +212,14 @@
       ],
       "enabled": true,
       "ritual": {
-        "minutes": 30,
         "ingredients": {
           "minecraft:netherite_ingot": 4,
           "minecraft:diamond_block": 16,
           "minecraft:skeleton_skull": 3,
           "minecraft:netherite_sword": 2,
           "minecraft:sculk_shrieker": 16,
-          "minecraft:sculk_catalyst": 32
+          "minecraft:sculk_catalyst": 32,
+          "amplified_items:pvp_head": 2
         }
       }
     },
@@ -240,14 +240,14 @@
       ],
       "enabled": true,
       "ritual": {
-        "minutes": 30,
         "ingredients": {
           "minecraft:magma_cream": 64,
           "minecraft:blaze_rod": 64,
           "minecraft:diamond_block": 32,
           "minecraft:netherite_ingot": 8,
           "minecraft:skeleton_skull": 6,
-          "amplified_items:sunlight": 1
+          "amplified_items:sunlight": 1,
+          "amplified_items:pvp_head": 2
         }
       }
     },
@@ -269,7 +269,6 @@
       ],
       "enabled": true,
       "ritual": {
-        "minutes": 15,
         "ingredients": {
           "minecraft:wind_charge": 128,
           "minecraft:breeze_rod": 64,
@@ -297,7 +296,6 @@
       ],
       "enabled": true,
       "ritual": {
-        "minutes": 15,
         "ingredients": {
           "minecraft:cobweb": 256,
           "minecraft:iron_block": 48,
@@ -324,13 +322,13 @@
       ],
       "enabled": true,
       "ritual": {
-        "minutes": 30,
         "ingredients": {
           "minecraft:redstone_block": 128,
           "minecraft:netherite_ingot": 6,
           "minecraft:netherite_axe": 2,
           "minecraft:powered_rail": 64,
-          "minecraft:nether_star": 1
+          "minecraft:nether_star": 1,
+          "amplified_items:pvp_head": 3
         }
       }
     }
