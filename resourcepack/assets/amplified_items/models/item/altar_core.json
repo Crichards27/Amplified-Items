@@ -1,0 +1,22 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "particle": "amplified_items:block/altar_side",
+    "side": "amplified_items:block/altar_side",
+    "top": "amplified_items:block/altar_top"
+  },
+  "elements": [
+    {
+      "from": [-0.032, -0.032, -0.032],
+      "to": [16.032, 16.032, 16.032],
+      "faces": {
+        "down":  {"uv": [0, 0, 16, 16], "texture": "#top"},
+        "up":    {"uv": [0, 0, 16, 16], "texture": "#top"},
+        "north": {"uv": [0, 0, 16, 16], "texture": "#side"},
+        "south": {"uv": [0, 0, 16, 16], "texture": "#side"},
+        "west":  {"uv": [0, 0, 16, 16], "texture": "#side"},
+        "east":  {"uv": [0, 0, 16, 16], "texture": "#side"}
+      }
+    }
+  ]
+}
