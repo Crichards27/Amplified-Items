@@ -1,5 +1,5 @@
 {
-  "configVersion": 5,
+  "configVersion": 6,
   "executionMultiplier": 1.3,
   "executionSeconds": 30,
   "executionRange": 24.0,
@@ -78,9 +78,10 @@
       "ritual": {
         "minutes": 15,
         "ingredients": {
-          "minecraft:iron_sword": 1,
-          "minecraft:gold_block": 4,
-          "minecraft:diamond": 1
+          "amplified_items:kings_crown": 1,
+          "minecraft:netherite_ingot": 8,
+          "minecraft:diamond_block": 16,
+          "minecraft:nether_star": 1
         }
       }
     },
@@ -103,9 +104,10 @@
       "ritual": {
         "minutes": 15,
         "ingredients": {
-          "minecraft:crossbow": 1,
-          "minecraft:fermented_spider_eye": 8,
-          "minecraft:emerald": 4
+          "minecraft:iron_block": 32,
+          "amplified_items:poison_arrow": 16,
+          "minecraft:skeleton_skull": 3,
+          "minecraft:crossbow": 8
         }
       }
     },
@@ -128,9 +130,12 @@
       "ritual": {
         "minutes": 30,
         "ingredients": {
-          "minecraft:netherite_sword": 1,
+          "minecraft:wither_skeleton_skull": 3,
           "minecraft:nether_star": 1,
-          "minecraft:ghast_tear": 4
+          "minecraft:echo_shard": 16,
+          "minecraft:gold_block": 64,
+          "minecraft:netherite_ingot": 4,
+          "minecraft:netherite_hoe": 2
         }
       }
     },
@@ -153,9 +158,12 @@
       "ritual": {
         "minutes": 15,
         "ingredients": {
-          "minecraft:crossbow": 1,
-          "minecraft:blaze_rod": 8,
-          "minecraft:gold_block": 4
+          "minecraft:crossbow": 3,
+          "minecraft:gold_block": 64,
+          "minecraft:diamond_block": 32,
+          "minecraft:netherite_ingot": 4,
+          "minecraft:blaze_rod": 64,
+          "minecraft:magma_cream": 32
         }
       }
     },
@@ -179,8 +187,11 @@
         "minutes": 30,
         "ingredients": {
           "minecraft:trident": 1,
+          "minecraft:prismarine": 64,
+          "minecraft:dark_prismarine": 64,
+          "minecraft:nautilus_shell": 16,
           "minecraft:heart_of_the_sea": 1,
-          "minecraft:prismarine_crystals": 8
+          "minecraft:diamond_block": 32
         }
       }
     },
@@ -203,9 +214,12 @@
       "ritual": {
         "minutes": 30,
         "ingredients": {
-          "minecraft:netherite_sword": 1,
-          "minecraft:phantom_membrane": 8,
-          "minecraft:echo_shard": 4
+          "minecraft:netherite_ingot": 4,
+          "minecraft:diamond_block": 16,
+          "minecraft:skeleton_skull": 3,
+          "minecraft:netherite_sword": 2,
+          "minecraft:sculk_shrieker": 16,
+          "minecraft:sculk_catalyst": 32
         }
       }
     },
@@ -228,9 +242,12 @@
       "ritual": {
         "minutes": 30,
         "ingredients": {
-          "minecraft:netherite_sword": 1,
-          "minecraft:blaze_rod": 8,
-          "minecraft:nether_star": 1
+          "minecraft:magma_cream": 64,
+          "minecraft:blaze_rod": 64,
+          "minecraft:diamond_block": 32,
+          "minecraft:netherite_ingot": 8,
+          "minecraft:skeleton_skull": 6,
+          "amplified_items:sunlight": 1
         }
       }
     },
@@ -254,9 +271,12 @@
       "ritual": {
         "minutes": 15,
         "ingredients": {
-          "minecraft:bow": 1,
-          "minecraft:breeze_rod": 8,
-          "minecraft:feather": 4
+          "minecraft:wind_charge": 128,
+          "minecraft:breeze_rod": 64,
+          "minecraft:guster_banner_pattern": 16,
+          "minecraft:flow_armor_trim_smithing_template": 32,
+          "minecraft:netherite_ingot": 4,
+          "minecraft:iron_block": 64
         }
       }
     },
@@ -279,9 +299,11 @@
       "ritual": {
         "minutes": 15,
         "ingredients": {
-          "minecraft:diamond_sword": 1,
-          "minecraft:cobweb": 16,
-          "minecraft:fermented_spider_eye": 8
+          "minecraft:cobweb": 256,
+          "minecraft:iron_block": 48,
+          "minecraft:netherite_ingot": 6,
+          "minecraft:trident": 2,
+          "minecraft:diamond_block": 32
         }
       }
     },
@@ -304,9 +326,11 @@
       "ritual": {
         "minutes": 30,
         "ingredients": {
-          "minecraft:netherite_sword": 1,
-          "minecraft:ghast_tear": 2,
-          "minecraft:redstone": 16
+          "minecraft:redstone_block": 128,
+          "minecraft:netherite_ingot": 6,
+          "minecraft:netherite_axe": 2,
+          "minecraft:powered_rail": 64,
+          "minecraft:nether_star": 1
         }
       }
     }

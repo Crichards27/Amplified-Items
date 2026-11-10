@@ -2,7 +2,7 @@
 
 For AmplifiedSMP on Minecraft Java 26.3. The server needs Java 25, Fabric Loader 0.20.1 or later, and Fabric API for 26.3. Players can join with vanilla Minecraft.
 
-1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.4.0.jar`.
+1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.5.0.jar`.
 2. Start the server. It updates `config/amplified-items/config.json`.
 3. Accept the server resource pack in Minecraft to see the custom textures.
 
@@ -34,9 +34,30 @@ For AmplifiedSMP on Minecraft Java 26.3. The server needs Java 25, Fabric Loader
 
 The timer runs on server ticks. Use `/amplifieditems ritual status` to check it. Rituals require a difficulty above Peaceful. Logging out or restarting the server ends a ritual. Ingredients still in the barrel can be used again.
 
+### Ritual ingredients
+
+| Weapon | Put in the altar barrel |
+|---|---|
+| King’s Decree | 1 King’s Crown, 8 netherite ingots, 16 diamond blocks, 1 nether star |
+| VenomBolt | 32 iron blocks, 16 arrows of poison, 3 skeleton skulls, 8 crossbows |
+| Reaper’s Edge | 3 wither skeleton skulls, 1 nether star, 16 echo shards, 64 gold blocks, 4 netherite ingots, 2 netherite hoes |
+| SunPiercer | 3 crossbows, 64 gold blocks, 32 diamond blocks, 4 netherite ingots, 64 blaze rods, 32 magma cream |
+| Leviathan’s Wrath | 1 trident, 64 prismarine, 64 dark prismarine, 16 nautilus shells, 1 heart of the sea, 32 diamond blocks |
+| NightBlade | 4 netherite ingots, 16 diamond blocks, 3 skeleton skulls, 2 netherite swords, 16 sculk shriekers, 32 sculk catalysts |
+| SolarBlade | 64 magma cream, 64 blaze rods, 32 diamond blocks, 8 netherite ingots, 6 skeleton skulls, 1 Sunlight |
+| WindWalker | 128 wind charges, 64 breeze rods, 16 Guster Banner Patterns, 32 Flow Armor Trim Smithing Templates, 4 netherite ingots, 64 iron blocks |
+| Spider’s Bane | 256 cobwebs, 48 iron blocks, 6 netherite ingots, 2 tridents, 32 diamond blocks |
+| BloodFang | 128 redstone blocks, 6 netherite ingots, 2 netherite axes, 64 powered rails, 1 nether star |
+
+Craft **King’s Crown** with two rows in a crafting table. The first row is gold ingot, diamond, gold ingot. The second is gold ingot, emerald, gold ingot.
+
+Craft **Sunlight** with one glowstone block, one blaze powder, and one gold ingot in any arrangement.
+
 ## Server settings
 
 In `config/amplified-items/config.json`, find a weapon under `weapons` and set `"enabled": false` to disable its abilities, passive, recipe, and admin give command. Set it to `true` to turn it back on.
+
+Upgrading to 1.5.0 replaces the ingredient lists for the ten built-in weapons. Custom weapon recipes and configured ritual times carry over.
 
 Change `"ritual": { ... }` on each weapon to edit its ingredients or switch its timer between 15 and 30 minutes. Run `/amplifieditems reload` after editing. Operators can use `/amplifieditems give @s venombolt` to test a weapon.
 
@@ -53,4 +74,4 @@ If the server already sends the Amplified Items pack, you can keep using it. To 
 }
 ```
 
-Restart after editing. For external hosting, upload `amplified-items-resources-1.4.0.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.
+Restart after editing. For external hosting, upload `amplified-items-resources-1.5.0.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.
