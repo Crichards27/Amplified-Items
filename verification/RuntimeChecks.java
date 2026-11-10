@@ -608,12 +608,19 @@ public final class RuntimeChecks implements ModInitializer {
         check(!PlayerBlockBreakEvents.BEFORE.invoker().beforeBlockBreak(level, owner, first,
             level.getBlockState(first), null), "The altar blocks player destruction");
         List<Entity> visuals = altarDisplays(level);
-        check(visuals.size() == 2 && visuals.stream().anyMatch(Display.ItemDisplay.class::isInstance)
+        check(visuals.size() == 3 && visuals.stream().filter(Display.ItemDisplay.class::isInstance).count() == 2
             && visuals.stream().anyMatch(Display.TextDisplay.class::isInstance) && visuals.stream().noneMatch(Entity::shouldBeSaved),
-            "The altar has a floating weapon and recipe text rebuilt from the ledger");
+            "The altar has a core model, floating weapon and recipe text rebuilt from the ledger");
+        var coreDisplay = visuals.stream().filter(Display.ItemDisplay.class::isInstance)
+            .map(Display.ItemDisplay.class::cast).filter(display -> display.getSlot(0).get().is(Items.BEDROCK))
+            .findFirst().orElseThrow();
+        check(coreDisplay.position().equals(Vec3.atCenterOf(first))
+            && "amplified_items:altar_core".equals(coreDisplay.getSlot(0).get().get(DataComponents.ITEM_MODEL).toString()),
+            "The custom altar model is centered on the protected bedrock");
+        coreDisplay.discard();
         level.setBlockAndUpdate(first, Blocks.AIR.defaultBlockState());
         altarTick(server);
-        check(level.getBlockState(first).is(Blocks.BEDROCK) && altarDisplays(level).size() == 2,
+        check(level.getBlockState(first).is(Blocks.BEDROCK) && altarDisplays(level).size() == 3,
             "The loaded altar restores a missing core without duplicating its displays");
         check(dispatcher.execute(command + "place kings_decree 3 101 5", admin) == 0, "A second altar for the same weapon is refused");
 
@@ -808,7 +815,7 @@ public final class RuntimeChecks implements ModInitializer {
             "A claimed weapon remains unavailable after an actual server restart");
         var core = level.getBlockState(new BlockPos(5, 101, 5));
         int displayCount = altarDisplays(level).size();
-        check(core.is(Blocks.BEDROCK) && displayCount == 2,
+        check(core.is(Blocks.BEDROCK) && displayCount == 3,
             "An unclaimed altar restores its displays after restart (" + core + ", " + displayCount + " displays)");
     }
 

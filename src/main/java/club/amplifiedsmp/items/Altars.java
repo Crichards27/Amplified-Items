@@ -11,6 +11,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -19,6 +20,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.Permissions;
+import net.minecraft.util.Brightness;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Display;
@@ -27,6 +29,7 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.Vec3;
@@ -49,6 +52,8 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 final class Altars {
+    private static final Identifier CORE_MODEL = Identifier.parse("amplified_items:altar_core");
+
     private record Site(String dimension, long position) {
         BlockPos pos() { return BlockPos.of(position); }
     }
@@ -61,8 +66,9 @@ final class Altars {
         }
     }
 
-    private record Preview(Display.ItemDisplay item, Display.TextDisplay text, WeaponDefinition weapon, String gate) {
-        void discard() { item.discard(); text.discard(); }
+    private record Preview(Display.ItemDisplay core, Display.ItemDisplay item, Display.TextDisplay text,
+                           WeaponDefinition weapon, String gate) {
+        void discard() { core.discard(); item.discard(); text.discard(); }
     }
 
     private final MinecraftServer server;
@@ -351,25 +357,34 @@ final class Altars {
         }
         String gate = closedEvent(id);
         Preview preview = previews.get(id);
-        if (preview != null && !preview.item().isRemoved() && !preview.text().isRemoved()
+        if (preview != null && !preview.core().isRemoved() && !preview.item().isRemoved() && !preview.text().isRemoved()
                 && preview.weapon().equals(weapon) && Objects.equals(preview.gate(), gate)) return;
         discardPreview(id);
+        var core = EntityTypes.ITEM_DISPLAY.create(level, EntitySpawnReason.EVENT);
         var item = EntityTypes.ITEM_DISPLAY.create(level, EntitySpawnReason.EVENT);
         var text = EntityTypes.TEXT_DISPLAY.create(level, EntitySpawnReason.EVENT);
-        if (item == null || text == null) return;
-        setupDisplay(item, pos, 1.65);
-        setupDisplay(text, pos, 2.20);
+        if (core == null || item == null || text == null) return;
+        setupDisplay(core, pos, 0.5, Display.BillboardConstraints.FIXED);
+        // The display sits inside opaque bedrock, so its own light sample would be black.
+        ((AltarDisplayAccess.Base) core).amplifiedItems$setBrightness(new Brightness(9, 15));
+        setupDisplay(item, pos, 1.65, Display.BillboardConstraints.CENTER);
+        setupDisplay(text, pos, 2.20, Display.BillboardConstraints.CENTER);
+        var coreStack = new ItemStack(Items.BEDROCK);
+        coreStack.set(DataComponents.ITEM_MODEL, CORE_MODEL);
+        ((AltarDisplayAccess.Item) core).amplifiedItems$setItem(coreStack);
+        ((AltarDisplayAccess.Item) core).amplifiedItems$setTransform(ItemDisplayContext.NONE);
         ((AltarDisplayAccess.Item) item).amplifiedItems$setItem(WeaponItems.create(weapon));
         ((AltarDisplayAccess.Item) item).amplifiedItems$setTransform(ItemDisplayContext.GROUND);
         ((AltarDisplayAccess.Text) text).amplifiedItems$setText(description(weapon));
-        if (level.addFreshEntity(item) && level.addFreshEntity(text)) previews.put(id, new Preview(item, text, weapon, gate));
-        else { item.discard(); text.discard(); }
+        var next = new Preview(core, item, text, weapon, gate);
+        if (level.addFreshEntity(core) && level.addFreshEntity(item) && level.addFreshEntity(text)) previews.put(id, next);
+        else next.discard();
     }
 
-    private static void setupDisplay(Display display, BlockPos pos, double y) {
+    private static void setupDisplay(Display display, BlockPos pos, double y, Display.BillboardConstraints billboard) {
         display.setPos(pos.getX() + 0.5, pos.getY() + y, pos.getZ() + 0.5);
         display.addTag("amplified_altar_display");
-        ((AltarDisplayAccess.Base) display).amplifiedItems$setBillboard(Display.BillboardConstraints.CENTER);
+        ((AltarDisplayAccess.Base) display).amplifiedItems$setBillboard(billboard);
     }
 
     private static void removeBlock(ServerLevel level, BlockPos pos) {

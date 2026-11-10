@@ -2,7 +2,7 @@
 
 For AmplifiedSMP on Minecraft Java 26.3. The server needs Java 25, Fabric Loader 0.20.1 or later, and Fabric API for 26.3. Players can join with vanilla Minecraft.
 
-1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.6.2.jar`.
+1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.6.3.jar`.
 2. Start the server. It updates `config/amplified-items/config.json`.
 3. Accept the server resource pack in Minecraft to see the custom textures.
 
@@ -22,10 +22,12 @@ For AmplifiedSMP on Minecraft Java 26.3. The server needs Java 25, Fabric Loader
 ## Place and claim an altar
 
 1. As an operator, run `/amplifieditems altar place venombolt ~ ~ ~2` to put a VenomBolt altar on an empty block in the current dimension.
-2. The bedrock core shows a floating weapon and ingredient list. Players bring the ingredients in their inventory and right-click the core in Survival or Adventure mode.
+2. The unbreakable altar shows a floating weapon and ingredient list. Players bring the ingredients in their inventory and right-click the altar block in Survival or Adventure mode.
 3. The winner gets the weapon immediately. A visual lightning strike and a server announcement mark the claim. The altar disappears.
 
 Each weapon can be claimed once across the server’s dimensions. Unclaimed altars and claim records survive restarts. PvP kills drop the defeated player’s head. Open `source/README.md` in the release ZIP for altar pictures and recipes, or run `/amplifieditems altar recipe <weapon>` in-game.
+
+Existing altars get the new model when their chunks load. Players see it after accepting the updated resource pack.
 
 ## Server settings
 
@@ -48,4 +50,4 @@ If the server already sends the Amplified Items pack, you can keep using it. To 
 }
 ```
 
-Restart after editing. For external hosting, upload `amplified-items-resources-1.6.2.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.
+Restart after editing. For external hosting, upload `amplified-items-resources-1.6.3.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.

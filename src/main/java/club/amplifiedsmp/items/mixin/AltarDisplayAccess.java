@@ -1,6 +1,7 @@
 package club.amplifiedsmp.items.mixin;
 
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Brightness;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
@@ -14,6 +15,9 @@ public final class AltarDisplayAccess {
     public interface Base {
         @Invoker("setBillboardConstraints")
         void amplifiedItems$setBillboard(Display.BillboardConstraints billboard);
+
+        @Invoker("setBrightnessOverride")
+        void amplifiedItems$setBrightness(Brightness brightness);
     }
 
     @Mixin(Display.ItemDisplay.class)

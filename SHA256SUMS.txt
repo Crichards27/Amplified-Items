@@ -1,2 +1,2 @@
-ba8cb4f2d9b2cb16fd434ebd30582011d4bc558f44bf9beb5334cba0f76c7ae8  amplified-items-1.6.2.jar
-599fa9336f0a25d3e4b725b1164e24a09b3c549933f0c84b554a024b7cff260e  amplified-items-resources-1.6.2.zip
+6468e7a9c8343982042634d665937fefa94fb413b7fdddd4d1e83889368a4442  amplified-items-1.6.3.jar
+c515b2b145c9814f40e44c852f1ec034d1b28e2e379a25b6a5f18e9ce0ceaee0  amplified-items-resources-1.6.3.zip
