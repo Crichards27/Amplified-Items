@@ -140,9 +140,9 @@ public final class Abilities {
 
     /** Called at the vanilla projectile collision, before any vanilla arrow damage. */
     public static boolean onProjectileHit(Projectile projectile, HitResult hit) {
+        if (!(projectile.level() instanceof net.minecraft.server.level.ServerLevel level)) return false;
         Shot shot = SHOTS.remove(projectile.getUUID());
         if (shot == null) return false;
-        var level = (net.minecraft.server.level.ServerLevel) projectile.level();
         ServerPlayer owner = level.getServer().getPlayerList().getPlayer(shot.owner());
         double rangeSquared = shot.range() * shot.range();
         if (owner != null && owner.isAlive() && owner.level() == level

@@ -5,11 +5,12 @@ repositories { mavenCentral() }
 dependencies {
     minecraft 'com.mojang:minecraft:26.3'
     implementation 'net.fabricmc:fabric-loader:0.20.1'
-    implementation 'net.fabricmc.fabric-api:fabric-api:0.165.2+26.3'
+    implementation 'net.fabricmc.fabric-api:fabric-api:0.165.0+26.3'
 }
 java { toolchain.languageVersion = JavaLanguageVersion.of(25); withSourcesJar() }
 tasks.withType(JavaCompile).configureEach { options.release = 25 }
 processResources { inputs.property 'version', project.version; filesMatching('fabric.mod.json') { expand version: project.version } }
+processResources { from('resourcepack') { include 'assets/**' } }
 tasks.register('logicChecks', JavaExec) {
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath

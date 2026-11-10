@@ -6,14 +6,20 @@ Ten custom weapons for AmplifiedSMP on **Minecraft Java 26.3**. The mod runs on 
 
 ## Install
 
-1. Use **Java 25**, **Fabric Loader 0.20.1 or later**, and **Fabric API 0.165.2+26.3** or a newer Fabric API build for Minecraft 26.3.
-2. Put `amplified-items-1.6.3.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
+1. Use **Java 25**, **Fabric Loader 0.20.1 or later**, and **Fabric API 0.165.0+26.3** or a newer Fabric API build for Minecraft 26.3.
+2. Put `amplified-items-1.6.4.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
 3. Start the server once to create or update `config/amplified-items/config.json`.
 4. Set up the resource pack, then restart the server. Players should accept the pack when they join.
 
+### Singleplayer
+
+Put `amplified-items-1.6.4.jar` and Fabric API for 26.3 in your Minecraft instance’s `mods` folder. The mod includes its textures for singleplayer.
+
+Open a world with commands enabled and run `/amplifieditems give @s bloodfang`. Hold the axe, press **F**, select an ability, then right-click to use it. To test altar crafting, run `/amplifieditems altar place bloodfang ~ ~ ~2`, gather its ingredients, and switch to Survival before claiming it.
+
 ### Resource pack
 
-Upload `amplified-items-resources-1.6.3.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
+Upload `amplified-items-resources-1.6.4.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
 
 To host the pack through the mod instead, open TCP port `8190` and edit these keys in the existing config. Replace `YOUR_SERVER_IP` with your server’s public address.
 

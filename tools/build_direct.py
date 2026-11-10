@@ -7,7 +7,7 @@ import concurrent.futures, hashlib, json, os, pathlib, shutil, subprocess, sys, 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CACHE = pathlib.Path(os.environ.get('AMPLIFIED_BUILD_CACHE', ROOT/'build/direct-cache')).resolve()
 CP = CACHE/'classpath'
-VERSION = '1.6.3'
+VERSION = '1.6.4'
 def fetch(url, path, sha1=None, sha256=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     expected = sha256 or sha1
@@ -37,7 +37,7 @@ def main():
             elif n.startswith('META-INF/libraries/') and n.endswith('.jar'): (CP/pathlib.Path(n).name).write_bytes(bundle.read(n))
     fabric='https://maven.fabricmc.net/'
     loader=fetch(fabric+'net/fabricmc/fabric-loader/0.20.1/fabric-loader-0.20.1.jar',CP/'fabric-loader-0.20.1.jar')
-    api=fetch(fabric+'net/fabricmc/fabric-api/fabric-api/0.165.2+26.3/fabric-api-0.165.2+26.3.jar',CP/'fabric-api.jar')
+    api=fetch(fabric+'net/fabricmc/fabric-api/fabric-api/0.165.0+26.3/fabric-api-0.165.0+26.3.jar',CACHE/'fabric-api-0.165.0+26.3.jar')
     info=json.loads(fetch(fabric+'net/fabricmc/fabric-loader/0.20.1/fabric-loader-0.20.1.json',CACHE/'loader.json').read_text())
     def library(l):
         group,name,ver=l['name'].split(':')
@@ -68,6 +68,8 @@ def main():
         for p in sorted(classes.rglob('*.class')):out.write(p,p.relative_to(classes))
         for p in sorted((ROOT/'src/main/resources').rglob('*')):
             if p.is_file():out.writestr(str(p.relative_to(ROOT/'src/main/resources')).replace('\\','/'),p.read_bytes().replace(b'${version}',VERSION.encode()))
+        for p in sorted((ROOT/'resourcepack/assets').rglob('*')):
+            if p.is_file(): out.write(p,p.relative_to(ROOT/'resourcepack'))
         out.write(pack,'bundled/'+pack.name)
     # Also produce example configuration from the same Java defaults.
     if '--verification' in sys.argv:

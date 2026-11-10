@@ -2,9 +2,15 @@
 
 For AmplifiedSMP on Minecraft Java 26.3. The server needs Java 25, Fabric Loader 0.20.1 or later, and Fabric API for 26.3. Players can join with vanilla Minecraft.
 
-1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.6.3.jar`.
+1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.6.4.jar`.
 2. Start the server. It updates `config/amplified-items/config.json`.
 3. Accept the server resource pack in Minecraft to see the custom textures.
+
+## Singleplayer
+
+Install `amplified-items-1.6.4.jar` and Fabric API 0.165.0+26.3 or newer for 26.3 in your Minecraft instance’s `mods` folder. The textures load from the mod.
+
+Enable commands in your world, then run `/amplifieditems give @s bloodfang`. Hold the axe, press **F**, select an ability, and right-click. To claim an altar, switch to Survival and bring the listed ingredients.
 
 ## Controls
 
@@ -50,4 +56,4 @@ If the server already sends the Amplified Items pack, you can keep using it. To 
 }
 ```
 
-Restart after editing. For external hosting, upload `amplified-items-resources-1.6.3.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.
+Restart after editing. For external hosting, upload `amplified-items-resources-1.6.4.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.
