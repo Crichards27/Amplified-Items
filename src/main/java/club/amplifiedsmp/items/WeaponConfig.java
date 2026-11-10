@@ -9,7 +9,7 @@ import java.util.*;
 
 public final class WeaponConfig {
     public static final Gson JSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static final int CONFIG_VERSION = 5;
+    private static final int CONFIG_VERSION = 6;
     public int configVersion = CONFIG_VERSION;
     public double executionMultiplier = 1.30;
     public int executionSeconds = 30;
@@ -118,9 +118,15 @@ public final class WeaponConfig {
                 if (config.weapons.stream().noneMatch(w -> w.id().equals(weapon.id()))) config.weapons.add(weapon);
             }
             config.grappleRange = Math.min(config.grappleRange, MAX_GRAPPLE_RANGE);
-            config.weapons.replaceAll(w -> new WeaponDefinition(w.id(), w.name(), w.baseItem(), w.model(), w.primary(),
-                w.secondary(), w.passive(), w.primaryCooldownSeconds(), w.secondaryCooldownSeconds(),
-                w.lore() == null ? null : w.lore().stream().map(WeaponConfig::abilityLore).toList(), w.enabled(), w.ritual()));
+            config.weapons.replaceAll(w -> {
+                var ingredients = defaults.weapons.stream().filter(d -> d.id().equals(w.id()))
+                    .findFirst().map(d -> d.ritual().ingredients()).orElse(w.ritual().ingredients());
+                var lore = w.lore();
+                if (previousVersion < 5 && lore != null) lore = lore.stream().map(WeaponConfig::abilityLore).toList();
+                return new WeaponDefinition(w.id(), w.name(), w.baseItem(), w.model(), w.primary(), w.secondary(),
+                    w.passive(), w.primaryCooldownSeconds(), w.secondaryCooldownSeconds(), lore, w.enabled(),
+                    new RitualRecipe(w.ritual().minutes(), ingredients));
+            });
             config.configVersion = CONFIG_VERSION;
             config.validate();
             var merged = JSON.toJsonTree(config).getAsJsonObject();

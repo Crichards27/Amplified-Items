@@ -46,17 +46,32 @@ public final class LogicChecks {
             oldV3.getAsJsonArray("weapons").get(1).getAsJsonObject().addProperty("enabled", false);
             Path v3Path = root.resolve("config/v3.json");
             Files.writeString(v3Path, WeaponConfig.JSON.toJson(oldV3));
-            var v5 = WeaponConfig.load(v3Path);
-            check(v5.configVersion == 5 && v5.grappleRange == 16, "Old grapple ranges are clamped during migration");
-            check(v5.enabledWeapon("kings_decree").ritual().minutes() == 15 && v5.enabledWeapon("venombolt") == null,
+            var v6 = WeaponConfig.load(v3Path);
+            check(v6.configVersion == 6 && v6.grappleRange == 16, "Old grapple ranges are clamped during migration");
+            check(v6.enabledWeapon("kings_decree").ritual().minutes() == 15 && v6.enabledWeapon("venombolt") == null,
                 "Legacy weapons get rituals and enabled defaults while explicit disables survive");
-            check(v5.enabledWeapon("kings_decree").lore().equals(List.of("summon / recall", "Custom note")), "Control lore migrates");
-            check(v5.enabledWeapon("nightblade").ritual().minutes() == 30, "Netherite weapons get the 30-minute ritual");
+            check(v6.enabledWeapon("kings_decree").lore().equals(List.of("summon / recall", "Custom note")), "Control lore migrates");
+            check(v6.enabledWeapon("nightblade").ritual().minutes() == 30, "Netherite weapons get the 30-minute ritual");
             check(WeaponConfig.abilityLore("Sneak + F: Execution").equals("Execution")
                 && WeaponConfig.abilityLore("Tap right-click: Slow Falling").equals("Tap right-click: Slow Falling"),
                 "Legacy menu lore changes while vanilla use instructions remain");
-            v5.grappleRange = 17; reject(v5::validate);
+            v6.grappleRange = 17; reject(v6::validate);
             reject(() -> new RitualRecipe(5, Map.of("minecraft:diamond", 1)).validate("test"));
+            var oldV5 = WeaponConfig.JSON.toJsonTree(config).getAsJsonObject();
+            oldV5.addProperty("configVersion", 5);
+            var oldKing = oldV5.getAsJsonArray("weapons").get(0).getAsJsonObject();
+            oldKing.add("ritual", WeaponConfig.JSON.toJsonTree(new RitualRecipe(30, Map.of("minecraft:iron_sword", 1))));
+            oldKing.addProperty("primaryCooldownSeconds", 25);
+            Path v5Path = root.resolve("config/v5.json");
+            Files.writeString(v5Path, WeaponConfig.JSON.toJson(oldV5));
+            var migrated = WeaponConfig.load(v5Path);
+            var migratedKing = migrated.enabledWeapon("kings_decree");
+            check(migratedKing.ritual().ingredients().equals(Map.of(
+                "amplified_items:kings_crown", 1, "minecraft:netherite_ingot", 8, "minecraft:diamond_block", 16, "minecraft:nether_star", 1)),
+                "The update replaces old built-in recipe ingredients");
+            check(migratedKing.ritual().minutes() == 30 && migratedKing.primaryCooldownSeconds() == 25
+                && migrated.enabledWeapon("test_staff").ritual().equals(custom.ritual()),
+                "The update preserves ritual times, weapon tuning, and additional weapons");
             var timers=new Timers(); UUID p=UUID.randomUUID(), other=UUID.randomUUID();
             timers.start(p,"execution",100,45);
             check(timers.remaining(p,"execution",100)==900,"45 second cooldown in ticks");

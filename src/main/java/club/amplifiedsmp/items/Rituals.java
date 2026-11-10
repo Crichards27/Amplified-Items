@@ -8,9 +8,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
@@ -90,8 +88,8 @@ final class Rituals {
             Component recipe = Component.literal(weapon.name() + " (" + weapon.ritual().minutes() + " minutes)");
             ctx.getSource().sendSuccess(() -> recipe, false);
             for (var ingredient : weapon.ritual().ingredients().entrySet()) {
-                var item = BuiltInRegistries.ITEM.getValue(Identifier.parse(ingredient.getKey()));
-                ctx.getSource().sendSuccess(() -> Component.literal(ingredient.getValue() + " × ").append(new ItemStack(item).getHoverName()), false);
+                ctx.getSource().sendSuccess(() -> Component.literal(ingredient.getValue() + " × ")
+                    .append(RitualIngredients.name(ingredient.getKey())), false);
             }
             return 1;
         }))).then(Commands.literal("start").then(weaponArgument().executes(ctx ->
@@ -163,10 +161,11 @@ final class Rituals {
     private static Map<Integer, Integer> ingredients(BarrelBlockEntity barrel, RitualRecipe recipe) {
         var missing = new HashMap<>(recipe.ingredients());
         var slots = new LinkedHashMap<Integer, Integer>();
+        boolean requiresPoison = missing.containsKey(RitualRecipe.POISON_ARROW);
         for (int slot = 0; slot < barrel.getContainerSize(); slot++) {
             ItemStack stack = barrel.getItem(slot);
             if (stack.isEmpty() || !WeaponItems.weaponId(stack).isEmpty()) continue;
-            String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            String id = RitualIngredients.key(stack, requiresPoison);
             int amount = Math.min(stack.getCount(), missing.getOrDefault(id, 0));
             if (amount == 0) continue;
             slots.put(slot, amount);

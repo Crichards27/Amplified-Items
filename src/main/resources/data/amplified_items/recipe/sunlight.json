@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": ["minecraft:glowstone", "minecraft:blaze_powder", "minecraft:gold_ingot"],
+  "result": {
+    "id": "minecraft:glowstone_dust",
+    "components": {
+      "minecraft:item_name": {"text": "Sunlight", "color": "gold"},
+      "minecraft:custom_data": {"amplified_ingredient": "sunlight"}
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": ["GDG", "GEG"],
+  "key": {
+    "G": "minecraft:gold_ingot",
+    "D": "minecraft:diamond",
+    "E": "minecraft:emerald"
+  },
+  "result": {
+    "id": "minecraft:golden_helmet",
+    "components": {
+      "minecraft:item_name": {"text": "King's Crown", "color": "gold"},
+      "minecraft:custom_data": {"amplified_ingredient": "kings_crown"}
+    }
+  }
+}

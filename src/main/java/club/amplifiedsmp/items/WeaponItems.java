@@ -21,10 +21,9 @@ public final class WeaponItems {
             if (!BuiltInRegistries.ITEM.containsKey(item) || item.equals(Identifier.parse("minecraft:air")))
                 throw new IllegalArgumentException("Unknown base item: " + w.baseItem());
             Identifier.parse(w.model());
-            for (var ingredient : w.ritual().ingredients().entrySet()) {
-                Identifier key = Identifier.parse(ingredient.getKey());
-                if (!BuiltInRegistries.ITEM.containsKey(key) || key.equals(Identifier.parse("minecraft:air")))
-                    throw new IllegalArgumentException("Unknown ritual ingredient on " + w.id() + ": " + key);
+            for (String ingredient : w.ritual().ingredients().keySet()) {
+                if (!RitualIngredients.known(ingredient))
+                    throw new IllegalArgumentException("Unknown ritual ingredient on " + w.id() + ": " + ingredient);
             }
             if (!Abilities.REGISTRY.containsKey(w.primary()) || !Abilities.REGISTRY.containsKey(w.secondary()))
                 throw new IllegalArgumentException("Unknown active ability on " + w.id());

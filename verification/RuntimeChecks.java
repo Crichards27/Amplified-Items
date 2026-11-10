@@ -10,7 +10,9 @@ import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.network.Connection;
 import net.minecraft.network.HashedStack;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMaps;
@@ -36,6 +38,10 @@ import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.*;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
+import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.component.ChargedProjectiles;
@@ -582,14 +588,55 @@ public final class RuntimeChecks implements ModInitializer {
             }
         }
         check(dispatcher.execute(start, source) == 0, "An empty altar cannot start a ritual");
-        barrel.setItem(0, WeaponItems.create(AmplifiedItems.CONFIG.enabledWeapon("kings_decree")));
-        barrel.setItem(1, new ItemStack(Items.GOLD_BLOCK, 5));
-        barrel.setItem(2, new ItemStack(Items.DIAMOND));
-        check(dispatcher.execute(start, source) == 0, "An existing Amplified Item cannot serve as the base weapon");
-        barrel.setItem(0, new ItemStack(Items.IRON_SWORD));
+        ItemStack crown = craft(level, CraftingInput.of(3, 2, List.of(
+            new ItemStack(Items.GOLD_INGOT), new ItemStack(Items.DIAMOND), new ItemStack(Items.GOLD_INGOT),
+            new ItemStack(Items.GOLD_INGOT), new ItemStack(Items.EMERALD), new ItemStack(Items.GOLD_INGOT))));
+        ItemStack sunlight = craft(level, CraftingInput.of(3, 1, List.of(
+            new ItemStack(Items.GLOWSTONE), new ItemStack(Items.BLAZE_POWDER), new ItemStack(Items.GOLD_INGOT))));
+        check(crown.is(Items.GOLDEN_HELMET) && crown.getHoverName().getString().equals("King's Crown")
+            && sunlight.is(Items.GLOWSTONE_DUST) && sunlight.getHoverName().getString().equals("Sunlight"),
+            "Both custom ingredients can be made in a vanilla crafting table");
+        ItemStack poison = new ItemStack(Items.TIPPED_ARROW, 16);
+        poison.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.POISON));
+        var special = Map.of("amplified_items:kings_crown", crown, "amplified_items:sunlight", sunlight,
+            "amplified_items:poison_arrow", poison);
+
+        for (var weapon : AmplifiedItems.CONFIG.weapons) {
+            int usedSlots = fillBarrel(barrel, weapon.ritual(), special);
+            check(usedSlots <= 27 && dispatcher.execute("amplifieditems ritual recipe " + weapon.id(), source) == 1,
+                weapon.name() + " recipe fits in " + usedSlots + " slots and can be shown in chat");
+            if (weapon.id().equals("venombolt")) {
+                var wrong = new ItemStack(Items.TIPPED_ARROW, 16);
+                wrong.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.SLOWNESS));
+                barrel.setItem(1, wrong);
+                check(dispatcher.execute("amplifieditems ritual start venombolt", source) == 0, "VenomBolt rejects other tipped arrows");
+                barrel.setItem(1, poison.copy());
+            }
+            if (weapon.id().equals("solarblade")) {
+                var fake = new ItemStack(Items.GLOWSTONE_DUST);
+                fake.set(DataComponents.CUSTOM_NAME, Component.literal("Sunlight"));
+                barrel.setItem(usedSlots - 1, fake);
+                check(dispatcher.execute("amplifieditems ritual start solarblade", source) == 0, "Renamed glowstone dust cannot pass as Sunlight");
+                barrel.setItem(usedSlots - 1, sunlight.copy());
+            }
+            check(dispatcher.execute("amplifieditems ritual start " + weapon.id(), source) == 1,
+                "The complete " + weapon.name() + " recipe starts its ritual");
+            level.setBlockAndUpdate(core.offset(1, 0, 0), Blocks.AIR.defaultBlockState());
+            ritualTick(server, AmplifiedItems.tick + 20);
+            level.setBlockAndUpdate(core.offset(1, 0, 0), Blocks.CHISELED_STONE_BRICKS.defaultBlockState());
+        }
+
+        var kingRecipe = AmplifiedItems.CONFIG.enabledWeapon("kings_decree").ritual();
+        fillBarrel(barrel, kingRecipe, special);
+        var fake = new ItemStack(Items.GOLDEN_HELMET);
+        fake.set(DataComponents.CUSTOM_NAME, Component.literal("King's Crown"));
+        barrel.setItem(0, fake);
+        check(dispatcher.execute(start, source) == 0, "A renamed helmet cannot pass as King's Crown");
+        barrel.setItem(0, crown.copy());
+        barrel.setItem(1, new ItemStack(Items.NETHERITE_INGOT, 9));
         long started = AmplifiedItems.tick;
         check(dispatcher.execute(start, source) == 1 && dispatcher.execute(status, source) == 1, "A non-operator can start a complete altar");
-        check(dispatcher.execute(start, source) == 0 && barrel.getItem(0).is(Items.IRON_SWORD),
+        check(dispatcher.execute(start, source) == 0 && barrel.getItem(0).is(Items.GOLDEN_HELMET),
             "Duplicate start is rejected and ingredients stay in the barrel");
         ritualTick(server, started + 1200);
         List<Entity> wave = ritualMobs(level);
@@ -609,31 +656,48 @@ public final class RuntimeChecks implements ModInitializer {
         check(WeaponItems.definition(barrel.getItem(0)) != null && WeaponItems.definition(barrel.getItem(0)).id().equals("kings_decree") && barrel.getItem(1).getCount() == 1
             && barrel.getItem(2).isEmpty() && dispatcher.execute(status, source) == 0, "Clearing the waves forges one weapon and consumes only recipe items (" + lastRitualMessage + ")");
 
-        barrel.setItem(0, new ItemStack(Items.IRON_SWORD));
-        barrel.setItem(1, new ItemStack(Items.GOLD_BLOCK, 4));
-        barrel.setItem(2, new ItemStack(Items.DIAMOND));
+        fillBarrel(barrel, kingRecipe, special);
         started = AmplifiedItems.tick;
         check(dispatcher.execute(start, source) == 1, "Altar can be reused");
         ritualTick(server, started + 1200);
         level.setBlockAndUpdate(core.offset(1, 0, 0), Blocks.AIR.defaultBlockState());
         ritualTick(server, started + 1220);
-        check(ritualMobs(level).isEmpty() && barrel.getItem(0).is(Items.IRON_SWORD) && dispatcher.execute(status, source) == 0,
+        check(ritualMobs(level).isEmpty() && barrel.getItem(0).is(Items.GOLDEN_HELMET) && dispatcher.execute(status, source) == 0,
             "Breaking the ring fails the ritual, cleans up hostiles, and leaves the ingredients");
 
         level.setBlockAndUpdate(core.offset(1, 0, 0), Blocks.CHISELED_STONE_BRICKS.defaultBlockState());
-        barrel.setItem(0, new ItemStack(Items.NETHERITE_SWORD));
-        barrel.setItem(1, new ItemStack(Items.PHANTOM_MEMBRANE, 8));
-        barrel.setItem(2, new ItemStack(Items.ECHO_SHARD, 4));
+        fillBarrel(barrel, AmplifiedItems.CONFIG.enabledWeapon("nightblade").ritual(), special);
         started = AmplifiedItems.tick;
         check(dispatcher.execute("amplifieditems ritual start nightblade", source) == 1, "The 30-minute NightBlade recipe starts");
         ritualTick(server, started + 1200);
         check(ritualMobs(level).size() == 3, "A 30-minute ritual sends three defenders per wave");
         ritualTick(server, started + 15 * 1200);
-        check(barrel.getItem(0).is(Items.NETHERITE_SWORD) && dispatcher.execute(status, source) == 1,
+        check(barrel.getItem(0).is(Items.NETHERITE_INGOT) && dispatcher.execute(status, source) == 1,
             "A 30-minute ritual is still running after 15 minutes");
         ritualTick(server, started + 30 * 1200);
-        check(ritualMobs(level).isEmpty() && barrel.getItem(0).is(Items.NETHERITE_SWORD) && dispatcher.execute(status, source) == 0,
+        check(ritualMobs(level).isEmpty() && barrel.getItem(0).is(Items.NETHERITE_INGOT) && dispatcher.execute(status, source) == 0,
             "Live defenders at the deadline prevent forging");
+    }
+
+    private static ItemStack craft(ServerLevel level, CraftingInput input) {
+        return level.getServer().getRecipeManager().getRecipeFor(RecipeType.CRAFTING, input, level).orElseThrow()
+            .value().assemble(input);
+    }
+
+    private static int fillBarrel(BarrelBlockEntity barrel, RitualRecipe recipe, Map<String, ItemStack> special) {
+        barrel.clearContent();
+        int slot = 0;
+        for (var ingredient : recipe.ingredients().entrySet()) {
+            ItemStack stack = special.get(ingredient.getKey());
+            if (stack == null) stack = new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.parse(ingredient.getKey())));
+            if (stack.isEmpty()) throw new AssertionError("Missing " + ingredient.getKey());
+            for (int remaining = ingredient.getValue(); remaining > 0;) {
+                int count = Math.min(stack.getMaxStackSize(), remaining);
+                barrel.setItem(slot++, stack.copyWithCount(count));
+                remaining -= count;
+            }
+        }
+        return slot;
     }
 
     private static void ritualTick(MinecraftServer server, long tick) {
