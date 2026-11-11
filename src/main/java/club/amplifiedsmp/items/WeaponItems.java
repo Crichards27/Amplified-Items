@@ -15,7 +15,7 @@ import net.minecraft.world.item.component.ItemLore;
 import java.util.*;
 
 public final class WeaponItems {
-    private static final String CONTROLS = "Press F to choose an ability. Right-click to use it.";
+    private static final String CONTROLS = "Use /ability 1 or /ability 2. Run /ability for descriptions.";
 
     private WeaponItems() {}
     public static void validate(WeaponConfig config) {
@@ -35,7 +35,7 @@ public final class WeaponItems {
     public static ItemStack create(WeaponDefinition w) {
         var stack = new ItemStack(BuiltInRegistries.ITEM.getValue(Identifier.parse(w.baseItem())));
         stack.set(DataComponents.MAX_STACK_SIZE, 1);
-        stack.set(DataComponents.UNBREAKABLE, net.minecraft.util.Unit.INSTANCE);
+        if (!w.id().equals("kings_crown")) stack.set(DataComponents.UNBREAKABLE, net.minecraft.util.Unit.INSTANCE);
         stack.set(DataComponents.ITEM_NAME, Component.literal(w.name()).withStyle(ChatFormatting.GOLD));
         stack.set(DataComponents.ITEM_MODEL, Identifier.parse(w.model()));
         var lore = new ArrayList<Component>();
@@ -45,6 +45,10 @@ public final class WeaponItems {
         var data = new CompoundTag();
         data.putString("cw_weapon", w.id());
         data.putString("cw_instance", UUID.randomUUID().toString());
+        if (w.id().equals("kings_crown")) {
+            data.putString("amplified_ingredient", "kings_crown");
+            crownEquipment(stack);
+        }
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(data));
         return stack;
     }
@@ -73,17 +77,45 @@ public final class WeaponItems {
     }
 
     static void updateControls(ItemStack stack) {
+        if (definition(stack) == null) return;
         ItemLore lore = stack.getOrDefault(DataComponents.LORE, ItemLore.EMPTY);
-        if ((!lore.lines().isEmpty() && lore.lines().getFirst().getString().equals(CONTROLS))
-                || weaponId(stack).isEmpty() || definition(stack) == null) return;
+        if (!lore.lines().isEmpty() && lore.lines().getFirst().getString().equals(CONTROLS)) return;
         var lines = new ArrayList<Component>();
         lines.add(Component.literal(CONTROLS).withStyle(ChatFormatting.YELLOW));
         for (Component line : lore.lines()) {
-            String old = line.getString();
-            String next = WeaponConfig.abilityLore(old);
-            lines.add(old.equals(next) ? line : Component.literal(next).withStyle(line.getStyle()));
+            String text = line.getString();
+            if (text.contains("Press F") || text.contains("choose an ability") || text.contains("Right-click to use it")) continue;
+            String updated = WeaponConfig.abilityLore(text);
+            lines.add(updated.equals(text) ? line : Component.literal(updated).withStyle(line.getStyle()));
         }
         stack.set(DataComponents.LORE, new ItemLore(lines));
+    }
+
+    static void upgradeIngredients(ServerPlayer player) {
+        var inventory = player.getInventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            String ingredient = data(stack).getStringOr("amplified_ingredient", "");
+            if (ingredient.equals("sunlight") && stack.is(Items.GLOWSTONE_DUST)) {
+                stack.set(DataComponents.ITEM_MODEL, Identifier.parse("amplified_items:sunlight"));
+            }
+            if (ingredient.equals("kings_crown") && (stack.is(Items.GOLDEN_HELMET) || stack.is(Items.NETHERITE_HELMET))) {
+                if (stack.is(Items.GOLDEN_HELMET)) {
+                    stack = stack.transmuteCopy(Items.NETHERITE_HELMET);
+                    inventory.setItem(slot, stack);
+                }
+                stack.set(DataComponents.ITEM_MODEL, Identifier.parse("amplified_items:kings_crown"));
+                crownEquipment(stack);
+            }
+            updateControls(stack);
+        }
+    }
+
+    private static void crownEquipment(ItemStack stack) {
+        stack.set(DataComponents.EQUIPPABLE, net.minecraft.world.item.equipment.Equippable.builder(net.minecraft.world.entity.EquipmentSlot.HEAD)
+            .setEquipSound(net.minecraft.sounds.SoundEvents.ARMOR_EQUIP_NETHERITE)
+            .setAsset(net.minecraft.resources.ResourceKey.create(net.minecraft.world.item.equipment.EquipmentAssets.ROOT_ID,
+                Identifier.parse("amplified_items:kings_crown"))).build());
     }
 
     public static UUID instance(ItemStack stack) {

@@ -130,19 +130,15 @@ public final class RuntimeChecks implements ModInitializer {
         player.connection.handlePlayerAction(new ServerboundPlayerActionPacket(
             ServerboundPlayerActionPacket.Action.SWAP_ITEM_WITH_OFFHAND, BlockPos.ZERO, Direction.DOWN));
     }
+    private static final java.util.Map<UUID, Integer> TEST_ABILITY = new java.util.HashMap<>();
     static void useItem(ServerPlayer player) {
-        player.connection.handleUseItem(new ServerboundUseItemPacket(InteractionHand.MAIN_HAND, ++sequence, player.getYRot(), player.getXRot()));
-    }
-    static void menuClick(ServerPlayer player, int slot, int button, ContainerInput input) {
-        var menu = player.containerMenu;
-        player.connection.handleContainerClick(new ServerboundContainerClickPacket(menu.containerId, menu.getStateId(),
-            (short) slot, (byte) button, input, Int2ObjectMaps.emptyMap(), HashedStack.EMPTY));
+        try {
+            player.level().getServer().getCommands().getDispatcher().execute(
+                "ability " + TEST_ABILITY.getOrDefault(player.getUUID(), 1), player.createCommandSourceStack());
+        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) { throw new AssertionError(e); }
     }
     static void chooseAbility(ServerPlayer player, int slot) {
-        pressF(player);
-        if (!(player.containerMenu instanceof AbilityMenu)) throw new AssertionError("Ability menu did not open");
-        menuClick(player, slot, 0, ContainerInput.PICKUP);
-        if (player.containerMenu != player.inventoryMenu) throw new AssertionError("Ability menu did not close after choosing");
+        TEST_ABILITY.put(player.getUUID(), slot == 4 ? 2 : 1);
     }
     static void run(MinecraftServer server) throws Exception {
         var level = server.overworld();
@@ -214,55 +210,32 @@ public final class RuntimeChecks implements ModInitializer {
         owner.setItemInHand(InteractionHand.MAIN_HAND,bow); AmplifiedItems.tick=2000;
         owner.setItemInHand(InteractionHand.OFF_HAND, new ItemStack(Items.TORCH));
         pressF(owner);
-        var menu = owner.containerMenu;
-        check(menu instanceof AbilityMenu && lastScreen.getType() == MenuType.GENERIC_9x1
-            && owner.getMainHandItem() == bow && owner.getOffhandItem().is(Items.TORCH)
-            && AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "venom_shot", 2000) == 0,
-            "F sends a vanilla menu without swapping items or casting");
-        check(menu.getSlot(2).getItem().getHoverName().getString().equals("Venom Shot")
-            && menu.getSlot(4).getItem().getHoverName().getString().equals("Grapple Hook"), "Menu shows both abilities");
-        menuClick(owner, 4, 0, ContainerInput.QUICK_MOVE);
-        menuClick(owner, 4, 40, ContainerInput.SWAP);
-        check(menu == owner.containerMenu && menu.getCarried().isEmpty()
-            && menu.getSlot(4).hasItem() && owner.getOffhandItem().is(Items.TORCH),
-            "Menu icons cannot be shift-clicked or swapped into inventory");
-        menuClick(owner, 4, 0, ContainerInput.PICKUP);
-        check(owner.containerMenu == owner.inventoryMenu && owner.inventoryMenu.getCarried().isEmpty(), "Choosing an ability closes the menu without transferring an icon");
-        var save = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, server.registryAccess());
-        owner.saveWithoutId(save);
-        check(save.buildResult().getCompoundOrEmpty("fabric:attachments").getCompoundOrEmpty("amplified_items:ability_selections")
-            .getStringOr("venombolt", "").equals("grapple_hook"), "Selected ability is saved in player data");
-        int correctionsBefore = predictedUseCorrections;
+        check(owner.getMainHandItem().is(Items.TORCH) && owner.getOffhandItem() == bow
+            && owner.containerMenu == owner.inventoryMenu, "F swaps items and never opens an ability menu");
+        pressF(owner);
+        chooseAbility(owner, 4);
         int bossPacketsBefore = bossPackets;
         useItem(owner);
-        check(AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "grapple_hook", 2000) == 100
-            && AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "venom_shot", 2000) == 0,
-            "A vanilla right-click packet uses the selected Grapple Hook");
-        check(bossPackets > bossPacketsBefore, "Casting sends the selected ability cooldown boss bar");
-        check(predictedUseCorrections > correctionsBefore && !owner.isUsingItem(), "Ability cast corrects vanilla crossbow draw prediction");
+        check(AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "grapple_hook", 2000) == 100,
+            "/ability 2 directly casts Grapple Hook for an ordinary player");
+        check(bossPackets > bossPacketsBefore, "Command casts send the weapon cooldown bar");
         Projectile cast = projectile(level);
         useItem(owner);
         cast.discard();
-        check(java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
-            .noneMatch(e -> e.entityTags().contains("cw_projectile") && !e.isRemoved()), "Repeated use packets cannot double-cast");
         AmplifiedItems.tick += 4;
         chooseAbility(owner, 2);
-        var blockPos = new BlockPos(0, 100, 3);
-        var blockHit = new BlockHitResult(Vec3.atCenterOf(blockPos).add(0, 0.5, 0), Direction.UP, blockPos, false);
-        owner.gameMode.useItemOn(owner, level, bow, InteractionHand.MAIN_HAND, blockHit);
+        useItem(owner);
+        check(AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "venom_shot", AmplifiedItems.tick) == 0
+            && AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "grapple_hook", AmplifiedItems.tick) == 96,
+            "Changing the command number cannot bypass the shared cooldown");
+        AmplifiedItems.tick += 96;
+        useItem(owner);
         check(AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "venom_shot", AmplifiedItems.tick) == 160,
-            "Right-clicking a block casts the selected Venom Shot");
+            "/ability 1 directly casts Venom Shot after the cooldown");
         projectile(level).discard();
-        chooseAbility(owner, 6);
         var use = net.fabricmc.fabric.api.event.player.UseItemCallback.EVENT.invoker();
         check(use.interact(owner, level, InteractionHand.MAIN_HAND) == net.minecraft.world.InteractionResult.PASS,
-            "Normal item use preserves vanilla right-click");
-        chooseAbility(owner, 2);
-        owner.setShiftKeyDown(true);
-        check(use.interact(owner, level, InteractionHand.MAIN_HAND) == net.minecraft.world.InteractionResult.PASS,
-            "Sneak right-click bypasses the selected ability");
-        owner.setShiftKeyDown(false);
-
+            "Right-click retains normal vanilla item use");
         owner.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(Items.STONE));
         pressF(owner);
         check(owner.getMainHandItem().is(Items.TORCH) && owner.getOffhandItem().is(Items.STONE), "F still swaps ordinary items");
@@ -295,6 +268,8 @@ public final class RuntimeChecks implements ModInitializer {
         checkNewWeapons(server, owner, victim);
         checkExpansion(server);
         checkAltars(server, owner);
+        checkReaperProgress(server);
+        checkStaffControls(server);
         checkStaffUnload(server, owner);
         var dir=java.nio.file.Files.createTempDirectory("cw-pack-check-");
         var settings=AmplifiedItems.CONFIG; boolean oldEnabled=settings.resourcePackHostEnabled; int oldPort=settings.resourcePackPort; String oldBind=settings.resourcePackBindAddress;
@@ -398,7 +373,7 @@ public final class RuntimeChecks implements ModInitializer {
         useItem(owner);
         check(AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "windburst", AmplifiedItems.tick) > 0
             && victim.getDeltaMovement().z >= 1.4, "Windburst defaults to right-click on WindWalker");
-        AmplifiedItems.tick += 4;
+        AmplifiedItems.tick += 200;
         chooseAbility(owner, 4);
         useItem(owner);
         check(owner.getEffect(MobEffects.SPEED).getAmplifier() == 1 && owner.hasEffect(MobEffects.JUMP_BOOST), "Right-click casts Updraft after choosing it");
@@ -470,7 +445,15 @@ public final class RuntimeChecks implements ModInitializer {
             && owner.hasEffect(MobEffects.STRENGTH), "Blood Rush grants speed and strength");
         check(Abilities.REGISTRY.get("crimson_cleave").use(owner, blood, null) && victim.getHealth() == 14, "Crimson Cleave hits in front for three hearts");
         owner.removeAllEffects();
-        for (int hit = 0; hit < 4; hit++) {
+        for (int spam = 0; spam < 8; spam++) {
+            victim.setHealth(20);
+            victim.damageCooldownTime = 0;
+            attackCharge.setInt(owner, 0);
+            owner.attack(victim);
+        }
+        check(Abilities.modifyDamage(victim, level.damageSources().playerAttack(owner), 10) == 10,
+            "Spam attacks do not fill BloodFang rage");
+        for (int hit = 0; hit < 5; hit++) {
             victim.setHealth(20);
             victim.damageCooldownTime = 0;
             attackCharge.setInt(owner, 40);
@@ -495,15 +478,29 @@ public final class RuntimeChecks implements ModInitializer {
         victim.damageCooldownTime = 0;
         AmplifiedItems.tick = 2010;
         Abilities.tick(server);
-        check(owner.getMaxHealth() == 30, "Reaper grants fifteen max hearts");
+        check(owner.getMaxHealth() == 20, "Reaper starts without unearned bonus hearts");
         check(Abilities.REGISTRY.get("soul_stealer").use(owner, reaper, null), "Soul Stealer hits the aimed enemy");
         check(victim.getHealth() == 16 && owner.getHealth() == 16, "Soul Stealer transfers two hearts");
+        for (int kill = 0; kill < 5; kill++) {
+            var defeated = player(server, "ReaperProgress" + kill, 4, 4);
+            defeated.setHealth(1);
+            defeated.hurtServer(level, level.damageSources().playerAttack(owner), 100);
+        }
+        check(owner.getMaxHealth() == 30, "Five PvP kills earn five Reaper hearts");
         owner.setHealth(30);
         AmplifiedItems.tick += 10;
         Abilities.tick(server);
         check(owner.hasEffect(MobEffects.SPEED) && owner.getEffect(MobEffects.SPEED).getAmplifier() == 0,
             "Reaper grants Speed I at full health");
 
+        owner.getInventory().setItem(10, reaper);
+        owner.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        Abilities.tick(server);
+        check(owner.getMaxHealth() == 30 && !owner.hasEffect(MobEffects.SPEED),
+            "Reaper hearts remain in inventory while the held Speed effect ends");
+        owner.getInventory().setItem(10, ItemStack.EMPTY);
+        owner.setItemInHand(InteractionHand.MAIN_HAND, reaper);
+        Abilities.tick(server);
         var chunkMap = (ChunkMapAccess) level.getChunkSource().chunkMap;
         Object tracker = chunkMap.amplifiedItems$entities().get(owner.getId());
         var seenByField = tracker.getClass().getDeclaredField("seenBy");
@@ -578,14 +575,132 @@ public final class RuntimeChecks implements ModInitializer {
         useItem(owner);
         check(!owner.isInWater() && owner.isAutoSpinAttack() && owner.getDeltaMovement().length() > 1,
             "Riptide launches the player on dry land");
+        double launchY = owner.getY();
         owner.setDeltaMovement(Vec3.ZERO);
-        AmplifiedItems.tick += 20;
+        AmplifiedItems.tick += 4;
+        useItem(owner);
+        check(owner.getDeltaMovement().lengthSqr() == 0 && owner.getY() == launchY,
+            "Trying Riptide before the next dash is ready preserves position and velocity");
+        owner.setDeltaMovement(Vec3.ZERO);
+        AmplifiedItems.tick += 16;
         useItem(owner);
         check(owner.getDeltaMovement().length() > 1, "Riptide allows another dash during its window");
         owner.setDeltaMovement(Vec3.ZERO);
         AmplifiedItems.tick += 180;
         useItem(owner);
         check(owner.getDeltaMovement().lengthSqr() == 0, "Riptide window closes after ten seconds");
+        chooseAbility(owner, 2);
+        useItem(owner);
+        check(AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "tide", AmplifiedItems.tick) == 0,
+            "Switching to Tide does not bypass the Riptide cooldown");
+    }
+
+    private static void checkReaperProgress(MinecraftServer server) {
+        var level = server.overworld();
+        var owner = player(server, "ReaperInventory", 3.5, 10.5);
+        var reaper = weapon("reapers_edge");
+        owner.getInventory().setItem(10, reaper);
+        for (int kill = 0; kill < 7; kill++) {
+            var victim = player(server, "ReaperCapVictim" + kill, 4, 10);
+            victim.setHealth(1);
+            victim.hurtServer(level, level.damageSources().playerAttack(owner), 100);
+        }
+        Abilities.tick(server);
+        check(owner.getMaxHealth() == 30 && !owner.hasEffect(MobEffects.SPEED),
+            "Reaper hearts cap at five and apply from inventory without held effects");
+        var saved = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
+        owner.saveWithoutId(saved);
+        check(saved.buildResult().getCompoundOrEmpty("fabric:attachments").getIntOr("amplified_items:reaper_hearts", 0) == 5,
+            "Earned Reaper hearts are saved in persistent player data");
+        owner.hurtServer(level, level.damageSources().genericKill(), 10000);
+        var after = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
+        owner.saveWithoutId(after);
+        check(after.buildResult().getCompoundOrEmpty("fabric:attachments").getIntOr("amplified_items:reaper_hearts", 0) == 4,
+            "Dying deducts exactly one earned heart");
+    }
+
+    private static void checkStaffControls(MinecraftServer server) {
+        var level = server.overworld();
+        level.setChunkForced(2, 0, true);
+        level.getChunkSource().tick(() -> true, false);
+        level.waitForEntities(new ChunkPos(2, 0), 0);
+        for (int x = 38; x <= 50; x++) for (int z = 4; z <= 14; z++) {
+            level.setBlockAndUpdate(new BlockPos(x, 100, z), Blocks.STONE.defaultBlockState());
+        }
+        var owner = player(server, "StaffControlCheck", 40.5, 10.5);
+        var victim = player(server, "StaffExecutionCheck", 40.5, 13.5);
+        var staff = weapon("kings_decree");
+        owner.setItemInHand(InteractionHand.MAIN_HAND, staff);
+        owner.setYRot(180);
+        var cow = EntityTypes.COW.create(level, EntitySpawnReason.COMMAND);
+        cow.setPos(41.5, 101, 10.5);
+        level.addFreshEntity(cow);
+        check(AmplifiedItems.SUMMONS.use(owner, staff, cow) && AmplifiedItems.SUMMONS.use(owner, staff, null),
+            "A staff releases a captured mob without an enemy target");
+        Mob summoned = active(level);
+        double height = summoned.getY();
+        AmplifiedItems.tick += 20;
+        AmplifiedItems.SUMMONS.tick();
+        summoned.tick();
+        AmplifiedItems.tick++;
+        AmplifiedItems.SUMMONS.tick();
+        summoned.tick();
+        check(summoned.getY() < height, "A released idle mob falls normally instead of freezing in the air");
+        var mount = EntityTypes.PIG.create(level, EntitySpawnReason.COMMAND);
+        mount.setPos(42.5, 101, 10.5);
+        level.addFreshEntity(mount);
+        check(!summoned.startRiding(mount, true, true) && !mount.startRiding(summoned, true, true),
+            "Summons cannot ride other entities or accept riders");
+        Vec3 beforePush = owner.getDeltaMovement();
+        summoned.push(owner);
+        check(owner.getDeltaMovement().equals(beforePush), "A summon cannot shove its owner");
+        for (int z = 4; z <= 14; z++) level.setBlockAndUpdate(new BlockPos(44, 101, z), Blocks.STONE.defaultBlockState());
+        owner.setPos(48.5, 101, 10.5);
+        double distance = summoned.distanceToSqr(owner);
+        AmplifiedItems.tick++;
+        AmplifiedItems.SUMMONS.tick();
+        double highest = summoned.getY();
+        for (int movement = 0; movement < 80; movement++) {
+            summoned.tick();
+            AmplifiedItems.tick++;
+            AmplifiedItems.SUMMONS.tick();
+            highest = Math.max(highest, summoned.getY());
+        }
+        check(highest > 101.4 && summoned.getX() > 44, "A released mob navigates up and over a one-block obstacle");
+        check(summoned.distanceToSqr(owner) < distance, "A released idle mob follows its owner");
+        AmplifiedItems.SUMMONS.recallOwner(owner.getUUID());
+        owner.setPos(40.5, 101, 10.5);
+        owner.setYRot(0);
+        owner.setXRot(0);
+        chooseAbility(owner, 4);
+        useItem(owner);
+        check(AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "execution", AmplifiedItems.tick) == 900
+            && AmplifiedItems.SUMMONS.status(staff).equals("STORED"),
+            "Selecting Execution takes effect on the next click without releasing the stored mob");
+        chooseAbility(owner, 2);
+        useItem(owner);
+        check(AmplifiedItems.SUMMONS.status(staff).equals("STORED"),
+            "Switching back to Ruler's Command does not clear Execution's cooldown");
+        AmplifiedItems.tick += 900;
+        var beeStaff = weapon("kings_decree");
+        owner.setItemInHand(InteractionHand.MAIN_HAND, beeStaff);
+        owner.setYRot(180);
+        var bee = EntityTypes.BEE.create(level, EntitySpawnReason.COMMAND);
+        bee.setPos(41.5, 101, 10.5);
+        level.addFreshEntity(bee);
+        check(AmplifiedItems.SUMMONS.use(owner, beeStaff, bee) && AmplifiedItems.SUMMONS.use(owner, beeStaff, null),
+            "A flying mob can be stored and released");
+        Mob flying = active(level);
+        owner.setPos(48.5, 104, 10.5);
+        double flyingDistance = flying.distanceToSqr(owner);
+        for (int step = 0; step < 100; step++) {
+            AmplifiedItems.tick++;
+            AmplifiedItems.SUMMONS.tick();
+            flying.tick();
+        }
+        check(flying.distanceToSqr(owner) < flyingDistance && flying.getY() < 110,
+            "Flying summons follow through native movement without launching away");
+        AmplifiedItems.SUMMONS.recallOwner(owner.getUUID());
     }
     static void checkAltars(MinecraftServer server, ServerPlayer owner) throws Exception {
         ServerLevel level = owner.level();
@@ -624,13 +739,16 @@ public final class RuntimeChecks implements ModInitializer {
             "The loaded altar restores a missing core without duplicating its displays");
         check(dispatcher.execute(command + "place kings_decree 3 101 5", admin) == 0, "A second altar for the same weapon is refused");
 
+        long headsBefore = java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .filter(entity -> entity instanceof ItemEntity item && item.getItem().is(Items.PLAYER_HEAD)).count();
         var defeated = player(server, "HeadDropTest", 3, 3.5);
         defeated.setHealth(1);
         defeated.damageCooldownTime = 0;
         defeated.hurtServer(level, level.damageSources().playerAttack(owner), 100);
         var head = java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
             .filter(ItemEntity.class::isInstance).map(ItemEntity.class::cast).map(ItemEntity::getItem)
-            .filter(stack -> stack.is(Items.PLAYER_HEAD)).findFirst().orElseThrow();
+            .filter(stack -> stack.is(Items.PLAYER_HEAD) && stack.has(DataComponents.PROFILE)
+                && stack.get(DataComponents.PROFILE).name().orElse("").equals("HeadDropTest")).findFirst().orElseThrow();
         check(head.has(DataComponents.PROFILE) && head.get(DataComponents.PROFILE).name().orElse("").equals("HeadDropTest")
             && head.get(DataComponents.CUSTOM_DATA).copyTag().getBooleanOr("amplified_pvp_head", false),
             "A real player kill drops a recipe head with the victim's profile");
@@ -640,16 +758,24 @@ public final class RuntimeChecks implements ModInitializer {
         environmental.hurtServer(level, level.damageSources().fall(), 100);
         long headCount = java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
             .filter(entity -> entity instanceof ItemEntity item && item.getItem().is(Items.PLAYER_HEAD)).count();
-        check(headCount == 1, "Environmental deaths do not produce PvP heads");
+        check(headCount == headsBefore + 1, "Environmental deaths do not produce PvP heads");
 
-        ItemStack crown = craft(level, CraftingInput.of(3, 2, List.of(
-            new ItemStack(Items.GOLD_INGOT), new ItemStack(Items.DIAMOND), new ItemStack(Items.GOLD_INGOT),
-            new ItemStack(Items.GOLD_INGOT), new ItemStack(Items.EMERALD), new ItemStack(Items.GOLD_INGOT))));
+        var creativeKiller = player(server, "CreativeTester", 3, 3.5);
+        creativeKiller.gameMode.changeGameModeForPlayer(GameType.CREATIVE);
+        var creativeVictim = player(server, "CreativeVictim", 3, 4.5);
+        creativeVictim.setHealth(1);
+        creativeVictim.hurtServer(level, level.damageSources().playerAttack(creativeKiller), 100);
+        check(java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .anyMatch(entity -> entity instanceof ItemEntity drop && drop.getItem().is(Items.PLAYER_HEAD)
+                && drop.getItem().has(DataComponents.PROFILE)
+                && drop.getItem().get(DataComponents.PROFILE).name().orElse("").equals("CreativeVictim")),
+            "A Creative attacker drops the Survival victim's profiled player head");
+        ItemStack crown = weapon("kings_crown");
         ItemStack sunlight = craft(level, CraftingInput.of(3, 1, List.of(
             new ItemStack(Items.GLOWSTONE), new ItemStack(Items.BLAZE_POWDER), new ItemStack(Items.GOLD_INGOT))));
-        check(crown.is(Items.GOLDEN_HELMET) && crown.getHoverName().getString().equals("King's Crown")
+        check(crown.is(Items.NETHERITE_HELMET) && crown.getHoverName().getString().equals("King's Crown")
             && sunlight.is(Items.GLOWSTONE_DUST) && sunlight.getHoverName().getString().equals("Sunlight"),
-            "Both custom ingredients still craft in a vanilla crafting table");
+            "The crown has netherite stats and Sunlight crafts with its custom texture");
         ItemStack poison = new ItemStack(Items.TIPPED_ARROW, 16);
         poison.set(DataComponents.POTION_CONTENTS, new PotionContents(Potions.POISON));
         var special = Map.of("amplified_items:kings_crown", crown, "amplified_items:sunlight", sunlight,
@@ -700,6 +826,11 @@ public final class RuntimeChecks implements ModInitializer {
                 .filter(stack -> weapon.equals(WeaponItems.definition(stack))).toList();
             check(rewards.size() == 1 && level.getBlockState(core).isAir() && lastClaim.contains(weapon.name()),
                 "Claiming " + weapon.name() + " awards one weapon, consumes the altar, and announces the winner");
+            if (weapon.id().equals("kings_crown")) {
+                check(rewards.getFirst().is(Items.NETHERITE_HELMET) && !rewards.getFirst().has(DataComponents.UNBREAKABLE)
+                    && dispatcher.execute(command + "place kings_crown 13 101 6", admin) == 0,
+                    "The crown altar awards one netherite helmet and rejects a second claim");
+            }
             if (weapon.id().equals("bloodfang")) {
                 check(rewards.getFirst().is(Items.NETHERITE_AXE), "The BloodFang altar awards a netherite axe");
             }
@@ -765,6 +896,9 @@ public final class RuntimeChecks implements ModInitializer {
 
     private static void checkStaffRestart(MinecraftServer server) {
         ServerLevel level = server.overworld();
+        level.setChunkForced(0, 0, true);
+        level.getChunkSource().tick(() -> true, false);
+        level.waitForEntities(new ChunkPos(0, 0), 0);
         loadSummonChunk(level);
         var holder = (BarrelBlockEntity) level.getBlockEntity(STAFF_HOLDER);
         ItemStack staff = holder.getItem(0);

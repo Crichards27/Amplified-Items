@@ -1,5 +1,5 @@
 {
-  "configVersion": 8,
+  "configVersion": 9,
   "executionMultiplier": 1.3,
   "executionSeconds": 30,
   "executionRange": 24.0,
@@ -126,7 +126,8 @@
       "lore": [
         "Soul Stealer",
         "Shadow Step",
-        "+5 max hearts. Speed I at 15 hearts."
+        "PvP kills earn up to 5 hearts. Death loses one.",
+        "Carry for earned hearts. Hold at 5 hearts for Speed I."
       ],
       "enabled": true,
       "ritual": {
@@ -318,7 +319,7 @@
       "lore": [
         "Blood Rush",
         "Crimson Cleave",
-        "Land 5 hits for a temporary damage boost."
+        "Full melee hits build rage."
       ],
       "enabled": true,
       "ritual": {
@@ -329,6 +330,31 @@
           "minecraft:powered_rail": 64,
           "minecraft:nether_star": 1,
           "amplified_items:pvp_head": 3
+        }
+      }
+    },
+    {
+      "id": "kings_crown",
+      "name": "King's Crown",
+      "baseItem": "minecraft:netherite_helmet",
+      "model": "amplified_items:kings_crown",
+      "primary": "none",
+      "secondary": "none",
+      "passive": "none",
+      "primaryCooldownSeconds": 0.0,
+      "secondaryCooldownSeconds": 0.0,
+      "lore": [
+        "Netherite protection. One altar claim per world."
+      ],
+      "enabled": true,
+      "ritual": {
+        "ingredients": {
+          "minecraft:netherite_helmet": 1,
+          "minecraft:netherite_ingot": 4,
+          "minecraft:diamond_block": 16,
+          "minecraft:gold_block": 32,
+          "minecraft:nether_star": 1,
+          "amplified_items:pvp_head": 2
         }
       }
     }

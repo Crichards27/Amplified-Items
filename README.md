@@ -1,25 +1,25 @@
 # Amplified Items
 
-Ten custom weapons for AmplifiedSMP on **Minecraft Java 26.3**. The mod runs on Fabric servers, and players can join with vanilla Minecraft and accept the server resource pack to see the custom models.
+Ten custom weapons and a crown for AmplifiedSMP on **Minecraft Java 26.3**. The mod runs on Fabric servers, and players can join with vanilla Minecraft and accept the server resource pack to see the custom models.
 
 [Install](#install) · [Controls](#controls) · [Craft a weapon](#craft-a-weapon) · [Weapons](#weapons) · [Special ingredients](#special-ingredients)
 
 ## Install
 
 1. Use **Java 25**, **Fabric Loader 0.20.1 or later**, and **Fabric API 0.165.0+26.3** or a newer Fabric API build for Minecraft 26.3.
-2. Put `amplified-items-1.6.4.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
+2. Put `amplified-items-1.7.0.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
 3. Start the server once to create or update `config/amplified-items/config.json`.
 4. Set up the resource pack, then restart the server. Players should accept the pack when they join.
 
 ### Singleplayer
 
-Put `amplified-items-1.6.4.jar` and Fabric API for 26.3 in your Minecraft instance’s `mods` folder. The mod includes its textures for singleplayer.
+Put `amplified-items-1.7.0.jar` and Fabric API for 26.3 in your Minecraft instance’s `mods` folder. The mod includes its textures for singleplayer.
 
-Open a world with commands enabled and run `/amplifieditems give @s bloodfang`. Hold the axe, press **F**, select an ability, then right-click to use it. To test altar crafting, run `/amplifieditems altar place bloodfang ~ ~ ~2`, gather its ingredients, and switch to Survival before claiming it.
+Open a world with commands enabled and run `/amplifieditems give @s bloodfang`. Hold the axe and run `/ability 1` or `/ability 2`. To test altar crafting, run `/amplifieditems altar place bloodfang ~ ~ ~2`, gather its ingredients, and switch to Survival before claiming it.
 
 ### Resource pack
 
-Upload `amplified-items-resources-1.6.4.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
+Upload `amplified-items-resources-1.7.0.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
 
 To host the pack through the mod instead, open TCP port `8190` and edit these keys in the existing config. Replace `YOUR_SERVER_IP` with your server’s public address.
 
@@ -36,11 +36,15 @@ If you already distribute the pack through `server.properties`, set its URL and 
 
 ## Controls
 
-1. Hold a weapon in your main hand and press **F** to open its ability menu. If you rebound **Swap Item With Offhand**, press that key.
-2. Click the ability you want. The menu closes and saves your choice for that weapon.
-3. **Right-click** to cast the selected ability. The first available ability is selected by default. Its active cooldown appears in a boss bar while you hold the weapon.
+Hold your weapon in your main hand.
 
-Use **sneak + right-click** for normal item actions, such as drawing a bow or loading a crossbow. You can also select **Normal item use** in the menu.
+- `/ability 1` casts its first ability.
+- `/ability 2` casts its second ability.
+- `/ability` shows descriptions and cooldowns.
+
+These commands work for ordinary players. Bind them to your preferred keys with a client command-keybind mod. F swaps your main hand and offhand normally. Right-click uses bows, crossbows, tridents and other vanilla items normally.
+
+A weapon’s active abilities share a cooldown. Using the other command keeps the remaining cooldown. Riptide can dash once per second during its active window. Spider’s Bane’s first ability is an automatic critical-hit combo. Use `/ability 2` for its grapple.
 
 ## Craft a weapon
 
@@ -54,7 +58,7 @@ Each weapon can be claimed once per world save. Claims and unclaimed altars surv
 
 ## PvP player heads
 
-When a player directly kills another player in Survival or Adventure mode with PvP enabled, the defeated player drops a head with their profile. This includes player-fired projectiles. Environmental deaths yield no head. Recipes labeled **PvP Player Head** accept these drops. Heads from other sources have their own vanilla item ID in recipes.
+When a player kills a Survival or Adventure player with PvP enabled, the defeated player drops a head with their profile. This includes player-fired projectiles and Creative attackers. Each drop is the defeated player’s profiled head. Environmental deaths yield no head. Recipes labeled **PvP Player Head** accept these drops. Heads from other sources have their own vanilla item ID in recipes.
 
 ## Weapons
 
@@ -68,7 +72,7 @@ The descriptions and recipes below use the default settings. Damage values are b
 
 A royal staff that stores and summons a mob to fight for you.
 
-- **Ruler’s Command.** Aim at a mob within five blocks and cast to capture it. Cast again to summon or recall it. A surviving summon can return to the staff. If it dies, capture a replacement. Altar defenders and other players’ pets are excluded from capture by default.
+- **Ruler’s Command.** Aim at a mob within five blocks and cast to capture it. Cast again to summon or recall it. Released mobs fight enemies and follow you while idle. A surviving summon can return to the staff. If it dies, capture a replacement. Altar defenders and other players’ pets are excluded from capture by default.
 - **Execution.** Marks an enemy player for 30 seconds, increasing incoming enemy damage by 30%.
 - **Ruler’s Authority.** Reduces incoming damage by 10% when at least three other players are within 12 blocks.
 
@@ -97,7 +101,7 @@ A scythe that drains health and hides its wielder.
 
 - **Soul Stealer.** Deals up to two hearts of damage and heals you for the health taken.
 - **Shadow Step.** Hides you, your armor, and your held items for six seconds.
-- **Passive.** Holding the weapon raises your default maximum to 15 hearts and grants Speed I at full health.
+- **Passive.** Start with no bonus hearts. Earn one heart per Survival or Adventure PvP kill while carrying the scythe, up to five. Every death removes one earned heart. The extra maximum health applies while the scythe is in your inventory. At five earned hearts, holding it grants Speed I. Progress stays with the player through restarts.
 
 **Altar recipe.** 3 wither skeleton skulls, 1 nether star, 16 echo shards, 64 gold blocks, 4 netherite ingots, 2 netherite hoes, 3 PvP player heads.  
 **Weapon ID:** `reapers_edge`
@@ -122,7 +126,7 @@ A fire crossbow with an explosive secondary shot.
 A trident that sends out a wave and lets you dash on dry land.
 
 - **Tide.** Sends out a moving wave that deals two hearts of drowning damage.
-- **Riptide.** Dashes without water. Right-click again to dash during the 10-second window, up to once per second.
+- **Riptide.** Dashes without water. Use `/ability 2` again to dash during the 10-second window, up to once per second.
 - **Passive.** Grants Water Breathing and Dolphin’s Grace while you hold it in water.
 
 **Altar recipe.** 1 trident, 64 prismarine, 64 dark prismarine, 16 nautilus shells, 1 heart of the sea, 32 diamond blocks.  
@@ -162,7 +166,7 @@ A bow that creates space and supplies its own arrows.
 
 - **Windburst.** Pushes nearby enemies away from you.
 - **Updraft.** Grants Speed II and Jump Boost II for eight seconds.
-- **Passive.** Hold and release normal use to fire without ammo. Tap normal use to toggle Slow Falling. Use sneak + right-click or select **Normal item use** from the menu.
+- **Passive.** Hold and release right-click to fire without ammo. Tap right-click to toggle Slow Falling.
 
 **Altar recipe.** 128 wind charges, 64 breeze rods, 16 Guster Banner Patterns, 32 Flow Armor Trim Smithing Templates, 4 netherite ingots, 64 iron blocks.  
 **Weapon ID:** `windwalker`
@@ -188,7 +192,7 @@ A netherite axe that builds rage through successful hits.
 
 - **Blood Rush.** Grants Speed II and Strength I for eight seconds.
 - **Crimson Cleave.** Swings through enemies in front of you, dealing three hearts of damage.
-- **Bloodlust.** Five successful hits build enough rage for a 20% damage boost for six seconds.
+- **Bloodlust.** Five fully charged melee hits or critical hits build enough rage for a 20% damage boost for six seconds.
 
 **Altar recipe.** 128 redstone blocks, 6 netherite ingots, 2 netherite axes, 64 powered rails, 1 nether star, 3 PvP player heads.  
 **Weapon ID:** `bloodfang`
@@ -197,20 +201,21 @@ A netherite axe that builds rage through successful hits.
 
 ### King’s Crown
 
-![King’s Crown preview using the Minecraft golden helmet icon](docs/items/kings_crown.png)
+![King’s Crown item model](docs/items/kings_crown.png)
 
-Craft in a crafting table for King’s Decree. It uses the vanilla golden helmet appearance.
+A helmet with its own item and worn textures, and the protection, toughness, knockback resistance and durability of an unenchanted netherite helmet.
 
-| Left | Center | Right |
-|---|---|---|
-| Gold ingot | Diamond | Gold ingot |
-| Gold ingot | Emerald | Gold ingot |
+Claim it once per world from an admin-placed `kings_crown` altar. Operators place it with `/amplifieditems altar place kings_crown ~ ~ ~2`.
+
+**Altar recipe.** 1 netherite helmet, 4 netherite ingots, 16 diamond blocks, 32 gold blocks, 1 nether star, 2 PvP player heads.
+
+King’s Decree consumes the crown in its existing recipe. Keep the crown to wear it, or spend it on the staff. Older crowns keep working as ingredients and gain the new appearance and netherite base when carried.
 
 ### Sunlight
 
-![Sunlight preview using the Minecraft glowstone dust icon](docs/items/sunlight.png)
+![Sunlight dust item model](docs/items/sunlight.png)
 
-Craft for SolarBlade using **1 glowstone block, 1 blaze powder, and 1 gold ingot** in any arrangement. It uses the vanilla glowstone dust appearance.
+Craft for SolarBlade using **1 glowstone block, 1 blaze powder, and 1 gold ingot** in any arrangement. It has its own golden dust texture.
 
 ## Admin setup
 
@@ -237,7 +242,7 @@ Edit `config/amplified-items/config.json` and run `/amplifieditems reload` to ap
 - Edit `altarEventRequirements` to lock an existing weapon behind an event. For example, use `"altarEventRequirements": {"nightblade": "vampire_event"}`, then open `vampire_event` in-game. Event IDs use lowercase letters, numbers, and underscores. No event gates are configured by default.
 - Claim records, registered sites, and event state are stored in the world’s `data/amplified-items/altars.json`. Keep that file with your world backup. Player-built barrel rituals from older releases give way to admin-placed altars.
 
-Players can use `/amplifieditems list` for enabled weapon IDs, `/amplifieditems status` for their held weapon and selected ability, and `/amplifieditems altar recipe <weapon>` to see the recipe.
+Players can use `/amplifieditems list` for enabled weapon IDs, `/amplifieditems status` for their held weapon and ability commands, and `/amplifieditems altar recipe <weapon>` to see the recipe.
 
 ## Add a weapon
 

@@ -1,6 +1,5 @@
 package club.amplifiedsmp.items;
 
-import club.amplifiedsmp.items.mixin.LivingFlagsAccess;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
@@ -9,18 +8,13 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.*;
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-import net.fabricmc.fabric.api.event.player.UseEntityCallback;
-import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
-import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.*;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.damagesource.DamageTypes;
@@ -42,20 +36,10 @@ public final class AmplifiedItems implements ModInitializer {
 
     @Override public void onInitialize() {
         Abilities.init();
-        AbilityMenu.register();
-        UseItemCallback.EVENT.register((player, level, hand) -> useSelectedAbility(player, hand, null));
-        UseBlockCallback.EVENT.register((player, level, hand, hit) -> {
-            if (player instanceof ServerPlayer serverPlayer && altars != null) {
-                var result = altars.use(serverPlayer, hand, hit.getBlockPos());
-                if (result != InteractionResult.PASS) {
-                    LAST_USE.put(serverPlayer.getUUID(), tick);
-                    return result;
-                }
-            }
-            return useSelectedAbility(player, hand, null);
-        });
-        UseEntityCallback.EVENT.register((player, level, hand, entity, hit) ->
-            useSelectedAbility(player, hand, entity instanceof LivingEntity living ? living : null));
+        ReaperHearts.register();
+        UseBlockCallback.EVENT.register((player, level, hand, hit) ->
+            player instanceof ServerPlayer serverPlayer && altars != null
+                ? altars.use(serverPlayer, hand, hit.getBlockPos()) : InteractionResult.PASS);
         try { CONFIG = WeaponConfig.load(configPath()); WeaponItems.validate(CONFIG); }
         catch (Exception e) { throw new IllegalStateException("Fix config/amplified-items/config.json before starting", e); }
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
@@ -86,6 +70,7 @@ public final class AmplifiedItems implements ModInitializer {
         ServerLivingEntityEvents.AFTER_DEATH.register((e,s) -> {
             if (SUMMONS != null) { SUMMONS.died(e); if (e instanceof ServerPlayer) SUMMONS.recallOwner(e.getUUID()); }
             if (e instanceof ServerPlayer player) {
+                ReaperHearts.death(player, s);
                 Abilities.clearPlayer(player);
                 BARS.remove(player);
                 PlayerHeads.drop(player, s);
@@ -117,48 +102,59 @@ public final class AmplifiedItems implements ModInitializer {
         LOG.info("Loaded {} server-side weapon definitions for Minecraft 26.3", CONFIG.weapons.size());
     }
 
-    public static boolean useAbilityKey(ServerPlayer player) {
-        if (player.isSpectator() || !player.isAlive()) return false;
-        WeaponDefinition weapon = WeaponItems.definition(player.getMainHandItem());
-        if (weapon == null) return false;
-        if (player.containerMenu == player.inventoryMenu) AbilityMenu.open(player, weapon);
-        return true;
+    static String coolingAbility(ServerPlayer player, WeaponDefinition weapon) {
+        long primary = AbilityControls.castable(weapon.primary())
+            ? COOLDOWNS.remaining(player.getUUID(), weapon.primary(), tick) : 0;
+        long secondary = AbilityControls.castable(weapon.secondary())
+            ? COOLDOWNS.remaining(player.getUUID(), weapon.secondary(), tick) : 0;
+        return primary >= secondary ? weapon.primary() : weapon.secondary();
     }
 
-    private static InteractionResult useSelectedAbility(Player user, InteractionHand hand, LivingEntity target) {
-        if (!(user instanceof ServerPlayer player) || !player.isAlive() || player.isSpectator()
-                || player.isShiftKeyDown() || player.containerMenu != player.inventoryMenu) return InteractionResult.PASS;
+    public static int castAbility(ServerPlayer player, int number) {
+        if (!player.isAlive() || player.isSpectator() || player.containerMenu != player.inventoryMenu) return 0;
         ItemStack item = player.getMainHandItem();
         WeaponDefinition weapon = WeaponItems.definition(item);
-        if (weapon == null) return InteractionResult.PASS;
-        String ability = AbilityMenu.selection(player, weapon);
-        if (ability.equals(AbilityMenu.NORMAL_USE)) return InteractionResult.PASS;
-
-        // A vanilla client can predict drawing a weapon or try its offhand after the same click.
-        if (player.getItemInHand(hand).getUseDuration(player) > 0) {
-            var flag = LivingFlagsAccess.amplifiedItems$livingFlags();
-            player.connection.send(new ClientboundSetEntityDataPacket(player.getId(),
-                List.of(SynchedEntityData.DataValue.create(flag, player.getEntityData().get(flag)))));
+        if (weapon == null) { Abilities.message(player, "Hold an Amplified weapon."); return 0; }
+        String ability = number == 1 ? weapon.primary() : weapon.secondary();
+        if (!AbilityControls.castable(ability)) {
+            Abilities.message(player, ability.equals("crit_combo") ? "Critical Combo triggers on critical hits." : "This item has no active ability.");
+            return 0;
         }
-        if (hand != InteractionHand.MAIN_HAND || LAST_USE.getOrDefault(player.getUUID(), -100L) + 3 > tick)
-            return InteractionResult.CONSUME;
+        player.stopUsingItem();
+        if (LAST_USE.getOrDefault(player.getUUID(), -100L) + 3 > tick) return 0;
         LAST_USE.put(player.getUUID(), tick);
-
-        if (ability.equals("riptide") && PlayerAbilities.repeatRiptide(player, item)) return InteractionResult.CONSUME;
-        long remaining = COOLDOWNS.remaining(player.getUUID(), ability, tick);
+        if (ability.equals("riptide") && PlayerAbilities.repeatRiptide(player, item)) return 1;
+        String cooling = coolingAbility(player, weapon);
+        long remaining = AbilityControls.castable(cooling) ? COOLDOWNS.remaining(player.getUUID(), cooling, tick) : 0;
         if (remaining > 0) {
-            Abilities.message(player, "Ability ready in " + (remaining + 19) / 20 + "s");
-        } else if (Abilities.REGISTRY.get(ability).use(player, item, target)) {
-            double seconds = ability.equals(weapon.primary()) ? weapon.primaryCooldownSeconds() : weapon.secondaryCooldownSeconds();
-            COOLDOWNS.start(player.getUUID(), ability, tick, seconds);
-            BARS.update(player);
-            player.swing(InteractionHand.MAIN_HAND, net.minecraft.world.item.component.SwingAnimation.DEFAULT, true);
+            Abilities.message(player, "Weapon ready in " + (remaining + 19) / 20 + "s");
+            return 0;
         }
-        return InteractionResult.CONSUME;
+        if (!Abilities.REGISTRY.get(ability).use(player, item, null)) return 0;
+        double seconds = number == 1 ? weapon.primaryCooldownSeconds() : weapon.secondaryCooldownSeconds();
+        COOLDOWNS.start(player.getUUID(), ability, tick, seconds);
+        BARS.update(player);
+        player.swing(InteractionHand.MAIN_HAND, net.minecraft.world.item.component.SwingAnimation.DEFAULT, true);
+        return 1;
     }
 
     private static void commands() {
         CommandRegistrationCallback.EVENT.register((dispatcher,access,environment) -> {
+            dispatcher.register(Commands.literal("ability").executes(ctx -> {
+                var player = ctx.getSource().getPlayerOrException();
+                var weapon = WeaponItems.definition(player.getMainHandItem());
+                if (weapon == null) { Abilities.message(player, "Hold an Amplified weapon."); return 0; }
+                for (int number = 1; number <= 2; number++) {
+                    String ability = number == 1 ? weapon.primary() : weapon.secondary();
+                    double cooldown = number == 1 ? weapon.primaryCooldownSeconds() : weapon.secondaryCooldownSeconds();
+                    player.sendSystemMessage(Component.literal("/ability " + number + " — " + AbilityControls.label(ability)
+                        + " (" + (long) Math.ceil(cooldown) + "s cooldown)"));
+                    for (String line : AbilityControls.description(ability)) player.sendSystemMessage(Component.literal(line));
+                }
+                return 1;
+            }).then(Commands.argument("number", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 2))
+                .executes(ctx -> castAbility(ctx.getSource().getPlayerOrException(),
+                    com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "number")))));
             dispatcher.register(Commands.literal("amplifieditems")
             .executes(ctx -> {
                 ctx.getSource().sendSuccess(() -> Component.literal("Hold a weapon and press F to choose an ability. Right-click to use it. See /amplifieditems altar to claim one."), false); return 1;
@@ -167,7 +163,7 @@ public final class AmplifiedItems implements ModInitializer {
                 var p = ctx.getSource().getPlayerOrException();
                 var w = WeaponItems.definition(p.getMainHandItem());
                 ctx.getSource().sendSuccess(() -> Component.literal(w == null ? "Hold an Amplified Item in your main hand."
-                    : w.name() + " | Selected: " + AbilityMenu.label(AbilityMenu.selection(p, w))
+                    : w.name() + " | /ability 1: " + AbilityControls.label(w.primary()) + " | /ability 2: " + AbilityControls.label(w.secondary())
                         + (w.primary().equals("rulers_command") || w.secondary().equals("rulers_command")
                             ? " | Stored mob: " + SUMMONS.status(p.getMainHandItem()) : "")), false); return 1;
             }))

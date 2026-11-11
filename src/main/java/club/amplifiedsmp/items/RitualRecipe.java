@@ -19,6 +19,9 @@ public record RitualRecipe(Map<String, Integer> ingredients) {
         RitualRecipe recipe = switch (id) {
             case "kings_decree" -> recipe(
                 ingredient(KINGS_CROWN, 1), ingredient("netherite_ingot", 8), ingredient("diamond_block", 16), ingredient("nether_star", 1));
+            case "kings_crown" -> recipe(
+                ingredient("netherite_helmet", 1), ingredient("netherite_ingot", 4), ingredient("diamond_block", 16),
+                ingredient("gold_block", 32), ingredient("nether_star", 1), ingredient(PVP_HEAD, 2));
             case "venombolt" -> recipe(
                 ingredient("iron_block", 32), ingredient(POISON_ARROW, 16), ingredient("skeleton_skull", 3), ingredient("crossbow", 8));
             case "reapers_edge" -> recipe(

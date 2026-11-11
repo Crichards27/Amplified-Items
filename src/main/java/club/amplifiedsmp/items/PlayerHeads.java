@@ -18,7 +18,7 @@ final class PlayerHeads {
 
     static void drop(ServerPlayer victim, DamageSource source) {
         if (!AmplifiedItems.CONFIG.pvpHeadDrops || !(source.getEntity() instanceof ServerPlayer killer)
-                || killer == victim || killer.isCreative() || killer.isSpectator() || victim.isCreative()
+                || killer == victim || killer.isSpectator() || victim.isCreative()
                 || victim.isSpectator() || !victim.level().getGameRules().get(GameRules.PVP)) return;
         ItemStack head = new ItemStack(Items.PLAYER_HEAD);
         head.set(DataComponents.PROFILE, ResolvableProfile.createResolved(victim.getGameProfile()));

@@ -264,8 +264,7 @@ public final class Abilities {
             WeaponItems.upgradeHeldBloodFang(p, InteractionHand.OFF_HAND);
             PlayerAbilities.tick(p);
             if (AmplifiedItems.tick % 20 == 0) {
-                WeaponItems.updateControls(p.getMainHandItem());
-                WeaponItems.updateControls(p.getOffhandItem());
+                WeaponItems.upgradeIngredients(p);
             }
             if (!PlayerAbilities.isHidden(p) && MARKS.containsKey(p.getUUID()) && AmplifiedItems.tick % 20 == 0) p.level().sendParticles(ParticleTypes.ANGRY_VILLAGER,
                 p.getX(), p.getY() + p.getBbHeight() + 0.3, p.getZ(), 3, 0.25, 0.1, 0.25, 0);

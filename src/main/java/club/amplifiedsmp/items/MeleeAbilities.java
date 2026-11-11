@@ -94,7 +94,6 @@ public final class MeleeAbilities {
             if (inFront(player, target)
                     && target.hurtServer(player.level(), player.level().damageSources().playerAttack(player), (float) config.crimsonCleaveDamage)) landed = true;
         }
-        if (landed && WeaponItems.hasPassive(item, "bloodlust")) gainRage(player);
         return true;
     }
 
@@ -103,7 +102,7 @@ public final class MeleeAbilities {
         return player.getLookAngle().dot(direction) >= .42;
     }
 
-    public static void landedHit(ServerPlayer player, LivingEntity target, boolean critical) {
+    public static void landedHit(ServerPlayer player, LivingEntity target, boolean critical, boolean charged) {
         if (!Combat.isEnemy(player, target)) return;
         ItemStack item = player.getWeaponItem();
         WeaponDefinition weapon = WeaponItems.definition(item);
@@ -111,7 +110,7 @@ public final class MeleeAbilities {
         if (weapon == null) return;
         if (weapon.primary().equals("crit_combo")) countCritical(player, target, item, weapon, critical);
         if (weapon.passive().equals("solar_cycle")) fireSweep(player, target);
-        if (weapon.passive().equals("bloodlust")) gainRage(player);
+        if (weapon.passive().equals("bloodlust") && (charged || critical)) gainRage(player);
     }
 
     private static void countCritical(ServerPlayer player, LivingEntity target, ItemStack item, WeaponDefinition weapon, boolean critical) {

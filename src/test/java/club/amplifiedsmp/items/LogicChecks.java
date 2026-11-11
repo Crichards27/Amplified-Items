@@ -18,14 +18,14 @@ public final class LogicChecks {
         Path root = Files.createTempDirectory("amplified-items-tests-");
         try {
             var config = WeaponConfig.load(root.resolve("config/config.json"));
-            check(config.weapons.size()==10,"Ten default weapons");
+            check(config.weapons.size()==11,"Ten weapons and a crown");
             check(config.executionSeconds==30 && config.venomPoisonSeconds==10,"Requested effect durations");
             check(WeaponConfig.load(root.resolve("config/config.json")).weapons.equals(config.weapons),"Config round-trip");
             config.executionMultiplier=Double.NaN; reject(config::validate); config.executionMultiplier=1.3;
             config.authorityReduction=1; reject(config::validate); config.authorityReduction=.1;
             config.weapons.add(config.weapons.getFirst()); reject(config::validate); config.weapons.removeLast();
             var custom=new WeaponDefinition("test_staff","Test Staff","minecraft:stick","amplified_items:kings_decree","rulers_command","grapple_hook","none",2,4,List.of("Test"));
-            config.weapons.add(custom); config.validate(); check(config.weapons.size()==11,"Additional JSON weapon definition");
+            config.weapons.add(custom); config.validate(); check(config.weapons.size()==12,"Additional JSON weapon definition");
             config.resourcePackPublicUrl="file:///private"; reject(config::validate); config.resourcePackPublicUrl="https://example.org/weapons.zip"; config.validate();
             var previous = WeaponConfig.JSON.toJsonTree(config).getAsJsonObject();
             previous.remove("configVersion");
@@ -34,8 +34,8 @@ public final class LogicChecks {
             Path oldConfig = root.resolve("config/previous.json");
             Files.writeString(oldConfig, WeaponConfig.JSON.toJson(previous));
             var upgraded = WeaponConfig.load(oldConfig);
-            check(upgraded.weapons.size() == 11 && upgraded.venomRadius == 7, "Upgrade adds new weapons and preserves settings");
-            check(WeaponConfig.load(oldConfig).weapons.size() == 11, "Upgrade runs once");
+            check(upgraded.weapons.size() == 12 && upgraded.venomRadius == 7, "Upgrade adds new weapons and preserves settings");
+            check(WeaponConfig.load(oldConfig).weapons.size() == 12, "Upgrade runs once");
             var oldV3 = WeaponConfig.JSON.toJsonTree(new WeaponConfig()).getAsJsonObject();
             oldV3.addProperty("configVersion", 3);
             oldV3.addProperty("grappleRange", 40);
@@ -47,7 +47,7 @@ public final class LogicChecks {
             Path v3Path = root.resolve("config/v3.json");
             Files.writeString(v3Path, WeaponConfig.JSON.toJson(oldV3));
             var fromV3 = WeaponConfig.load(v3Path);
-            check(fromV3.configVersion == 8 && fromV3.grappleRange == 16, "Old grapple ranges are clamped during migration");
+            check(fromV3.configVersion == 9 && fromV3.grappleRange == 16, "Old grapple ranges are clamped during migration");
             check(fromV3.enabledWeapon("kings_decree").ritual().ingredients().get(RitualRecipe.PVP_HEAD) == 2 && fromV3.enabledWeapon("venombolt") == null,
                 "Legacy weapons get rituals and enabled defaults while explicit disables survive");
             check(fromV3.enabledWeapon("kings_decree").lore().equals(List.of("summon / recall", "Custom note")), "Control lore migrates");
@@ -77,8 +77,8 @@ public final class LogicChecks {
             check(altarUpgrade.enabledWeapon("kings_decree").ritual().ingredients()
                 .equals(Map.of("minecraft:iron_sword", 1, RitualRecipe.PVP_HEAD, 2)),
                 "An existing custom ingredient list gains only the new head cost");
-            check(altarUpgrade.weapons.stream().filter(w -> w.ritual().ingredients().containsKey(RitualRecipe.PVP_HEAD)).count() == 6,
-                "Six built-in recipes require PvP heads");
+            check(altarUpgrade.weapons.stream().filter(w -> w.ritual().ingredients().containsKey(RitualRecipe.PVP_HEAD)).count() == 7,
+                "Seven built-in recipes require PvP heads");
             var oldV7 = WeaponConfig.JSON.toJsonTree(new WeaponConfig()).getAsJsonObject();
             oldV7.addProperty("configVersion", 7);
             var oldBloodFang = oldV7.getAsJsonArray("weapons").asList().stream()

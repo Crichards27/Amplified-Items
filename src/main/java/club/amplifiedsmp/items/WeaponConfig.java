@@ -9,7 +9,7 @@ import java.util.*;
 
 public final class WeaponConfig {
     public static final Gson JSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static final int CONFIG_VERSION = 8;
+    private static final int CONFIG_VERSION = 9;
     public int configVersion = CONFIG_VERSION;
     public double executionMultiplier = 1.30;
     public int executionSeconds = 30;
@@ -81,7 +81,7 @@ public final class WeaponConfig {
             List.of("Venom Shot", "Grapple Hook", "Poison II splash for 10 seconds")),
         new WeaponDefinition("reapers_edge", "Reaper's Edge", "minecraft:netherite_sword", "amplified_items:reapers_edge",
             "soul_stealer", "shadow_step", "reaper_vitality", 15, 40,
-            List.of("Soul Stealer", "Shadow Step", "+5 max hearts. Speed I at 15 hearts.")),
+            List.of("Soul Stealer", "Shadow Step", "PvP kills earn up to 5 hearts. Death loses one.", "Carry for earned hearts. Hold at 5 hearts for Speed I.")),
         new WeaponDefinition("sunpiercer", "SunPiercer", "minecraft:crossbow", "amplified_items:sunpiercer",
             "flaming_burst", "solar_flare", "flame_crossbow", 8, 18,
             List.of("Flaming Burst", "Solar Flare", "Normal arrows ignite.")),
@@ -102,7 +102,9 @@ public final class WeaponConfig {
             List.of("Land 5 crits on one target: Poison II", "Web Grapple", "Walk through cobwebs at normal speed.")),
         new WeaponDefinition("bloodfang", "BloodFang", "minecraft:netherite_axe", "amplified_items:bloodfang",
             "blood_rush", "crimson_cleave", "bloodlust", 20, 12,
-            List.of("Blood Rush", "Crimson Cleave", "Land 5 hits for a temporary damage boost."))
+            List.of("Blood Rush", "Crimson Cleave", "Full melee hits build rage.")),
+        new WeaponDefinition("kings_crown", "King's Crown", "minecraft:netherite_helmet", "amplified_items:kings_crown",
+            "none", "none", "none", 0, 0, List.of("Netherite protection. One altar claim per world."))
     ));
 
     public static WeaponConfig load(Path path) throws IOException {
@@ -119,6 +121,9 @@ public final class WeaponConfig {
             for (var weapon : defaults.weapons.subList(firstNewWeapon, defaults.weapons.size())) {
                 if (config.weapons.stream().noneMatch(w -> w.id().equals(weapon.id()))) config.weapons.add(weapon);
             }
+            if (previousVersion < 9 && config.weapons.stream().noneMatch(w -> w.id().equals("kings_crown"))) {
+                config.weapons.add(defaults.weapons.stream().filter(w -> w.id().equals("kings_crown")).findFirst().orElseThrow());
+            }
             config.grappleRange = Math.min(config.grappleRange, MAX_GRAPPLE_RANGE);
             config.weapons.replaceAll(w -> {
                 var ingredients = w.ritual().ingredients();
@@ -127,7 +132,7 @@ public final class WeaponConfig {
                         .findFirst().map(d -> d.ritual().ingredients()).orElse(ingredients);
                 }
                 var lore = w.lore();
-                if (previousVersion < 5 && lore != null) lore = lore.stream().map(WeaponConfig::abilityLore).toList();
+                if (previousVersion < 9 && lore != null) lore = lore.stream().map(WeaponConfig::abilityLore).toList();
                 if (previousVersion < 7) ingredients = RitualRecipe.withHeadCost(w.id(), ingredients);
                 String baseItem = w.baseItem();
                 if (previousVersion < 8 && w.id().equals("bloodfang") && baseItem.equals("minecraft:netherite_sword")) {
@@ -240,6 +245,8 @@ public final class WeaponConfig {
 
     static String abilityLore(String line) {
         return switch (line) {
+            case "+5 max hearts. Speed I at 15 hearts." -> "PvP kills earn up to 5 hearts. Death loses one.";
+            case "Land 5 hits for a temporary damage boost." -> "Full melee hits build rage.";
             case "Right-click a mob: capture", "Aim at a mob and press F to capture" -> "Aim at a nearby mob to capture it";
             case "Normal arrows ignite while Flaming Burst recharges." -> "Normal arrows ignite.";
             case "Left-click: Windburst" -> "Windburst";

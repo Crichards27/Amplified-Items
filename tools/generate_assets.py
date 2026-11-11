@@ -180,6 +180,52 @@ def generate(client):
     ranged_weapon(client, "crossbow", "sunpiercer", crossbow, solar)
 
 
+    crown = Image.new("RGBA", (16, 16))
+    detail(crown, 1, 2, [
+        "g.....g.....g.",
+        "YG...gYg...gYG",
+        "gYG.gYPYg.gYGg",
+        ".gYYYgPgYYYg..",
+        ".gYYYYYYYYYg..",
+        ".gYgPYYYPgYg..",
+        ".gYYYYYYYYYg..",
+        "..ggggggggg...",
+    ], {"g": "86511e", "Y": "e5ac41", "G": "ffe38c", "P": "9b5ce3"})
+    write_sprite("kings_crown", crown, "minecraft:item/generated")
+    write_definition("kings_crown", model_ref("kings_crown"))
+
+    dust = Image.new("RGBA", (16, 16))
+    detail(dust, 2, 2, [
+        ".....Y......",
+        "....YGY.....",
+        "..Y..Y..Y...",
+        ".YGY...YGY..",
+        "..Y..GG.Y...",
+        "....GYYG....",
+        "..GGYYYGG...",
+        ".GYYYYYYYG..",
+        "GYYYYGGYYYG.",
+        ".GYYYYYYYG..",
+        "..GGGGGGG...",
+    ], {"Y": "f2ae35", "G": "ffe995"})
+    write_sprite("sunlight", dust, "minecraft:item/generated")
+    write_definition("sunlight", model_ref("sunlight"))
+
+    armor = Image.open(BytesIO(client.read("assets/minecraft/textures/entity/equipment/humanoid/netherite.png"))).convert("RGBA")
+    for y in range(armor.height):
+        for x in range(armor.width):
+            r, g, b, a = armor.getpixel((x, y))
+            if a:
+                level = max(r, g, b) / 255
+                armor.putpixel((x, y), (int(100 + 155 * level), int(58 + 160 * level), int(15 + 70 * level), a))
+    armor_path = ASSETS / "textures/entity/equipment/humanoid/kings_crown.png"
+    armor_path.parent.mkdir(parents=True, exist_ok=True)
+    armor.save(armor_path, optimize=True)
+    write_json(ASSETS / "equipment/kings_crown.json", {
+        "layers": {"humanoid": [{"texture": "amplified_items:kings_crown"}]}
+    })
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("client_jar", type=Path, help="path to the Minecraft 26.3 client JAR")

@@ -18,8 +18,9 @@ final class CooldownBars {
             remove(player);
             return;
         }
-        String ability = AbilityMenu.selection(player, weapon);
-        long remaining = AmplifiedItems.COOLDOWNS.remaining(player.getUUID(), ability, AmplifiedItems.tick);
+        String ability = AmplifiedItems.coolingAbility(player, weapon);
+        long remaining = AbilityControls.castable(ability)
+            ? AmplifiedItems.COOLDOWNS.remaining(player.getUUID(), ability, AmplifiedItems.tick) : 0;
         if (remaining == 0) {
             remove(player);
             return;
@@ -27,7 +28,7 @@ final class CooldownBars {
         double total = 20 * (ability.equals(weapon.primary()) ? weapon.primaryCooldownSeconds() : weapon.secondaryCooldownSeconds());
         var bar = bars.computeIfAbsent(player.getUUID(), id -> new ServerBossEvent(UUID.randomUUID(),
             Component.empty(), BossEvent.BossBarColor.PURPLE, BossEvent.BossBarOverlay.PROGRESS));
-        bar.setName(Component.literal(AbilityMenu.label(ability) + " · " + (remaining + 19) / 20 + "s"));
+        bar.setName(Component.literal(AbilityControls.label(ability) + " · " + (remaining + 19) / 20 + "s"));
         bar.setProgress((float) Math.min(1, remaining / Math.max(1, total)));
         bar.addPlayer(player);
     }

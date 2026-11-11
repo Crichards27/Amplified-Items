@@ -10,7 +10,6 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
@@ -30,7 +29,7 @@ public final class PlayerAbilities {
     private static final Map<UUID, Flight> PHANTOMS = new HashMap<>();
     private static final Map<UUID, MobEffectInstance> NIGHT_VISION = new HashMap<>();
     private static final Set<UUID> SLOW_FALL = new HashSet<>();
-    private record RiptideWindow(long expires, long nextDash) {}
+    private record RiptideWindow(UUID weapon, long expires, long nextDash) {}
     private record Flight(long expires, boolean mayFly, boolean flying, GameType mode) {}
 
     private PlayerAbilities() {}
@@ -146,21 +145,23 @@ public final class PlayerAbilities {
         if (player.isPassenger()) return false;
         long expires = AmplifiedItems.tick + AmplifiedItems.CONFIG.riptideSeconds * 20L;
         dash(player, item, expires);
-        Abilities.message(player, "Riptide active. Right-click again to dash.");
+        Abilities.message(player, "Riptide active. Use this ability again to dash.");
         return true;
     }
 
     static boolean repeatRiptide(ServerPlayer player, ItemStack item) {
         var window = RIPTIDES.get(player.getUUID());
-        if (window == null || window.expires() <= AmplifiedItems.tick) return false;
+        if (window == null || window.expires() <= AmplifiedItems.tick
+                || !java.util.Objects.equals(window.weapon(), WeaponItems.instance(item))) return false;
         if (!player.isPassenger() && AmplifiedItems.tick >= window.nextDash()) dash(player, item, window.expires());
+        else Abilities.message(player, "Next Riptide dash in " + Math.max(1, (window.nextDash() - AmplifiedItems.tick + 19) / 20) + "s");
         return true;
     }
 
     private static void dash(ServerPlayer player, ItemStack item, long expires) {
-        RIPTIDES.put(player.getUUID(), new RiptideWindow(expires, AmplifiedItems.tick + 20));
+        RIPTIDES.put(player.getUUID(), new RiptideWindow(WeaponItems.instance(item), expires, AmplifiedItems.tick + 20));
         Vec3 velocity = player.getLookAngle().scale(AmplifiedItems.CONFIG.riptideVelocity);
-        if (player.onGround()) player.move(MoverType.SELF, new Vec3(0, 1.2, 0));
+        if (player.onGround() && velocity.y < 0.6) velocity = new Vec3(velocity.x, 0.6, velocity.z);
         player.startAutoSpinAttack(20, 0, item);
         Abilities.launch(player, velocity);
         player.level().playSound(null, player, SoundEvents.TRIDENT_RIPTIDE_1, SoundSource.PLAYERS, 1, 1);
@@ -184,22 +185,10 @@ public final class PlayerAbilities {
         if (held == null) held = WeaponItems.definition(player.getOffhandItem());
         String passive = held != null && player.isAlive() && !player.isSpectator() ? held.passive() : "none";
         WebWalk.tick(player, passive.equals("web_phase"));
+        ReaperHearts.tick(player);
         if (AmplifiedItems.tick % 10 != 0) return;
         cycleEffects(player, passive);
         if (passive.equals("windwalker") && SLOW_FALL.contains(id)) refreshEffect(player, MobEffects.SLOW_FALLING, 0);
-        if (passive.equals("reaper_vitality")) {
-            var maxHealth = player.getAttribute(Attributes.MAX_HEALTH);
-            var modifier = maxHealth.getModifier(REAPER_HEALTH);
-            double bonus = AmplifiedItems.CONFIG.reaperBonusHealth;
-            if (modifier == null || modifier.amount() != bonus) {
-                maxHealth.addOrUpdateTransientModifier(new AttributeModifier(REAPER_HEALTH, bonus, AttributeModifier.Operation.ADD_VALUE));
-            }
-            if (player.getHealth() >= player.getMaxHealth()) {
-                player.addEffect(new MobEffectInstance(MobEffects.SPEED, 15, 0, false, false, true));
-            }
-        } else {
-            removeHealthBonus(player);
-        }
         if (passive.equals("ocean_blessing") && player.isInWater()) {
             player.addEffect(new MobEffectInstance(MobEffects.WATER_BREATHING, 15, 0, false, false, true));
             player.addEffect(new MobEffectInstance(MobEffects.DOLPHINS_GRACE, 15, 0, false, false, true));
@@ -251,6 +240,7 @@ public final class PlayerAbilities {
 
     static void clear(ServerPlayer player) {
         endFlight(player);
+        ReaperHearts.clearSpeed(player);
         if (SHADOWS.remove(player.getUUID()) != null) refreshTracking(player);
         RIPTIDES.remove(player.getUUID());
         SLOW_FALL.remove(player.getUUID());
@@ -266,5 +256,6 @@ public final class PlayerAbilities {
         NIGHT_VISION.clear();
         SLOW_FALL.clear();
         WebWalk.reset();
+        ReaperHearts.reset();
     }
 }

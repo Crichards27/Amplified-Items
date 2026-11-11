@@ -27,7 +27,7 @@ public abstract class PlayerMixin {
     private void amplifiedItems$landedHit(Entity entity, boolean critical, boolean sweep, boolean charged,
                                           boolean stab, float bonusDamage, CallbackInfo ci) {
         if (!stab && (Object) this instanceof ServerPlayer player && entity instanceof LivingEntity target) {
-            MeleeAbilities.landedHit(player, target, critical);
+            MeleeAbilities.landedHit(player, target, critical, charged);
         }
     }
 

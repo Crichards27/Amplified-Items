@@ -2,28 +2,23 @@
 
 For AmplifiedSMP on Minecraft Java 26.3. The server needs Java 25, Fabric Loader 0.20.1 or later, and Fabric API for 26.3. Players can join with vanilla Minecraft.
 
-1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.6.4.jar`.
+1. Replace the old Amplified Items JAR in `mods` with `amplified-items-1.7.0.jar`.
 2. Start the server. It updates `config/amplified-items/config.json`.
 3. Accept the server resource pack in Minecraft to see the custom textures.
 
 ## Singleplayer
 
-Install `amplified-items-1.6.4.jar` and Fabric API 0.165.0+26.3 or newer for 26.3 in your Minecraft instance’s `mods` folder. The textures load from the mod.
+Install `amplified-items-1.7.0.jar` and Fabric API 0.165.0+26.3 or newer for 26.3 in your Minecraft instance’s `mods` folder. The textures load from the mod.
 
-Enable commands in your world, then run `/amplifieditems give @s bloodfang`. Hold the axe, press **F**, select an ability, and right-click. To claim an altar, switch to Survival and bring the listed ingredients.
+Enable commands in your world, then run `/amplifieditems give @s bloodfang`. Hold the axe and use `/ability 1` or `/ability 2`. To claim an altar, switch to Survival and bring the listed ingredients.
 
 ## Controls
 
-1. Hold the weapon in your main hand and press **F** to open its ability menu.
-2. Click the ability you want. The menu closes and remembers your choice for that weapon.
-3. **Right-click** to cast the selected ability. The first available ability is selected by default.
+Hold your weapon in your main hand and use `/ability 1` or `/ability 2`. Run `/ability` to read descriptions and cooldowns. These commands work without operator permissions. A client command-keybind mod can bind them to any keys.
 
-**Sneak + right-click** uses the item normally. You can also choose **Normal item use** in the menu. For WindWalker, a short normal-use tap toggles Slow Falling and a full draw shoots without ammo.
+F swaps hands normally. Right-click performs the item’s vanilla action. WindWalker supplies arrows and toggles Slow Falling on a short right-click.
 
-- If you rebound **Swap Item With Offhand**, use that key to open the menu.
-- With **Ruler's Command** selected, aim at a mob within five blocks and right-click to capture it. Right-click again to summon or recall it.
-- Spider's Bane's Critical Combo triggers automatically on the fifth critical hit against the same target. Select Web Grapple to use it with right-click.
-- VenomBolt's grapple and Spider's Bane's web grapple reach up to 16 blocks.
+Both active abilities share the weapon’s cooldown. Riptide repeat dashes are limited to once per second during its active window.
 
 ## Place and claim an altar
 
@@ -56,4 +51,6 @@ If the server already sends the Amplified Items pack, you can keep using it. To 
 }
 ```
 
-Restart after editing. For external hosting, upload `amplified-items-resources-1.6.4.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.
+Restart after editing. For external hosting, upload `amplified-items-resources-1.7.0.zip`, set `resourcePackPublicUrl` to its direct ZIP link, and leave `resourcePackHostEnabled` false. If you send your pack through `server.properties`, set its URL and SHA-1 there and leave the mod's `resourcePackPublicUrl` empty. Players can use `/amplifieditems pack` to request the pack again.
+
+King’s Crown is a one-time `kings_crown` altar reward with netherite helmet stats. See `source/README.md` for its recipe and the new Reaper heart progression.

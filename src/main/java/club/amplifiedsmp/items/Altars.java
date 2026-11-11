@@ -255,7 +255,7 @@ final class Altars {
                 if (output < 0) output = slot;
                 continue;
             }
-            if (!WeaponItems.weaponId(stack).isEmpty()) continue;
+            if (!WeaponItems.weaponId(stack).isEmpty() && !WeaponItems.weaponId(stack).equals("kings_crown")) continue;
             String key = RitualIngredients.key(stack, poison, heads);
             int count = Math.min(stack.getCount(), missing.getOrDefault(key, 0));
             if (count == 0) continue;

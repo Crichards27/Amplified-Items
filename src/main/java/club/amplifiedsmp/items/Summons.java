@@ -56,7 +56,7 @@ public final class Summons {
         }
         if (entry == null || entry.state == SummonLedger.State.DEAD) {
             LivingEntity target = clicked != null ? clicked : Combat.aimed(player, 5);
-            if (!(target instanceof Mob mob)) { Abilities.message(player, "Aim at a mob within 5 blocks and right-click with Ruler's Command selected."); return false; }
+            if (!(target instanceof Mob mob)) { Abilities.message(player, "Aim at a mob within 5 blocks and use /ability 1 with the staff."); return false; }
             return capture(player, staff, mob);
         }
         return summon(player, staff, entry);
@@ -85,14 +85,14 @@ public final class Summons {
                 ledger.retire(mob.getUUID());
             }); // Commit first; retired IDs suppress stale entities after an interrupted world save.
             mob.discard();
-            Abilities.message(player, "Captured " + mob.getName().getString() + ". Right-click to summon.");
+            Abilities.message(player, "Captured " + mob.getName().getString() + ". Use Ruler's Command again to summon.");
             return true;
         } catch (Exception e) { return fail(player, e); }
     }
     private boolean summon(ServerPlayer player, UUID staff, SummonLedger.Entry entry) {
         try {
             CompoundTag tag = TagParser.parseCompoundFully(entry.snapshot);
-            tag.remove("UUID"); tag.remove("Leash"); tag.remove("leash");
+            tag.remove("UUID"); tag.remove("Leash"); tag.remove("leash"); tag.remove("Passengers");
             Entity entity = EntityType.loadEntityRecursive(tag, player.level(),
                 new EntitySpawnRequest(EntitySpawnReason.COMMAND, true), EntityProcessor.NOP);
             if (!(entity instanceof Mob mob)) throw new IOException("Stored entity is no longer a mob");
@@ -102,7 +102,7 @@ public final class Summons {
                     || !player.level().getWorldBorder().isWithinBounds(mob.getBoundingBox())) {
                 Abilities.message(player, "Not enough clear space to summon this mob."); return false;
             }
-            mob.setNoAi(true); // All mob types use the same controlled melee AI; no explosions or owner targeting.
+            mob.setNoAi(false);
             mob.setPersistenceRequired();
             mob.setTarget(null);
             mob.addTag("cw_summon");
@@ -117,7 +117,7 @@ public final class Summons {
                 active.remove(mob.getUUID()); entry.state = SummonLedger.State.STORED; ledger.save();
                 Abilities.message(player, "Summon was blocked by the server."); return false;
             }
-            Abilities.message(player, "Summoned " + mob.getName().getString() + ". Right-click again to recall.");
+            Abilities.message(player, "Summoned " + mob.getName().getString() + ". Use Ruler's Command again to recall.");
             return true;
         } catch (Exception e) { return fail(player, e); }
     }
@@ -201,7 +201,7 @@ public final class Summons {
                 mob.discard();
                 continue;
             }
-            mob.setNoAi(true);
+            mob.setNoAi(false);
             Active restored = new Active(entry.staff, mob, entry.owner);
             active.put(id, restored);
             recall(restored);
@@ -237,6 +237,7 @@ public final class Summons {
             }
             if (a.target == null) {
                 if (AmplifiedItems.tick - a.idleSince >= AmplifiedItems.CONFIG.summonIdleSeconds * 20L) recall(a);
+                else moveToward(mob, mob.distanceToSqr(owner) > 3 * 3 ? owner : null);
                 continue;
             }
             a.idleSince = AmplifiedItems.tick;
@@ -249,25 +250,30 @@ public final class Summons {
                     // Player attribution preserves PvP checks, death messages and protection event hooks.
                     a.target.hurtServer(owner.level(), owner.level().damageSources().playerAttack(owner), (float) AmplifiedItems.CONFIG.summonMeleeDamage);
                 }
-            } else moveToward(a);
+                moveToward(mob, null);
+            } else moveToward(mob, a.target);
         }
     }
-    private void moveToward(Active a) {
-        Mob mob = a.mob;
-        Vec3 destination = a.target.position();
-        if (AmplifiedItems.tick % 10 == 0) mob.getNavigation().moveTo(a.target, 1);
-        mob.getNavigation().tick();
-        var path = mob.getNavigation().getPath();
-        if (path != null && !path.isDone()) destination = path.getNextEntityPos(mob);
-        Vec3 delta = destination.subtract(mob.position());
-        double speed = mob.getAttribute(Attributes.MOVEMENT_SPEED) == null ? 0.22 : Math.max(0.12, Math.min(0.4, mob.getAttributeValue(Attributes.MOVEMENT_SPEED)));
-        boolean flying = Set.of("ghast", "happy_ghast", "phantom", "blaze", "wither", "ender_dragon", "allay", "bat", "bee", "vex")
-            .contains(BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).getPath());
-        Vec3 step = flying || mob.isInWater() ? delta.normalize().scale(speed)
-            : new Vec3(delta.x, 0, delta.z).normalize().scale(speed);
-        if (!flying && mob.onGround() && (mob.horizontalCollision || delta.y > 0.4)) step = step.add(0, 0.42, 0);
-        mob.move(MoverType.SELF, step);
+    private void moveToward(Mob mob, LivingEntity target) {
+        if (target == null) {
+            mob.getNavigation().stop();
+            mob.setSpeed(0);
+            return;
+        }
+        mob.getLookControl().setLookAt(target, 30, 30);
+        if (AmplifiedItems.tick % 10 == 0 || mob.getNavigation().isDone()) {
+            mob.getNavigation().moveTo(target, 1);
+        }
     }
+
+    public void aiStep(Mob mob) {
+        mob.setTarget(null);
+        mob.getNavigation().tick();
+        mob.getMoveControl().tick();
+        mob.getLookControl().tick();
+        mob.getJumpControl().tick();
+    }
+
     private boolean fail(ServerPlayer player, Exception e) {
         AmplifiedItems.LOG.error("Mob storage operation failed", e);
         Abilities.message(player, "Storage error. Ask an admin to check the log."); return false;

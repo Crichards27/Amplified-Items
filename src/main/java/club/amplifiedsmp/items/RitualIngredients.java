@@ -37,10 +37,10 @@ final class RitualIngredients {
             if (potion.is(Potions.POISON) || potion.is(Potions.LONG_POISON) || potion.is(Potions.STRONG_POISON))
                 return RitualRecipe.POISON_ARROW;
         }
-        if (stack.is(Items.GOLDEN_HELMET) || stack.is(Items.GLOWSTONE_DUST)) {
+        if (stack.is(Items.GOLDEN_HELMET) || stack.is(Items.NETHERITE_HELMET) || stack.is(Items.GLOWSTONE_DUST)) {
             var tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
             String ingredient = tag.getStringOr("amplified_ingredient", "");
-            if (stack.is(Items.GOLDEN_HELMET) && ingredient.equals("kings_crown")) return RitualRecipe.KINGS_CROWN;
+            if ((stack.is(Items.GOLDEN_HELMET) || stack.is(Items.NETHERITE_HELMET)) && ingredient.equals("kings_crown")) return RitualRecipe.KINGS_CROWN;
             if (stack.is(Items.GLOWSTONE_DUST) && ingredient.equals("sunlight")) return RitualRecipe.SUNLIGHT;
         }
         return BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
