@@ -157,7 +157,7 @@ public final class AmplifiedItems implements ModInitializer {
                     com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "number")))));
             dispatcher.register(Commands.literal("amplifieditems")
             .executes(ctx -> {
-                ctx.getSource().sendSuccess(() -> Component.literal("Hold a weapon and press F to choose an ability. Right-click to use it. See /amplifieditems altar to claim one."), false); return 1;
+                ctx.getSource().sendSuccess(() -> Component.literal("Hold a weapon and use /ability 1 or /ability 2. Run /ability for descriptions. See /amplifieditems altar to claim one."), false); return 1;
             })
             .then(Commands.literal("status").executes(ctx -> {
                 var p = ctx.getSource().getPlayerOrException();
@@ -165,7 +165,7 @@ public final class AmplifiedItems implements ModInitializer {
                 ctx.getSource().sendSuccess(() -> Component.literal(w == null ? "Hold an Amplified Item in your main hand."
                     : w.name() + " | /ability 1: " + AbilityControls.label(w.primary()) + " | /ability 2: " + AbilityControls.label(w.secondary())
                         + (w.primary().equals("rulers_command") || w.secondary().equals("rulers_command")
-                            ? " | Stored mob: " + SUMMONS.status(p.getMainHandItem()) : "")), false); return 1;
+                            ? " | Royal guard: " + SUMMONS.status(p.getMainHandItem()) : "")), false); return 1;
             }))
             .then(Altars.commands(() -> altars))
             .then(Commands.literal("pack").executes(ctx -> { PACK.send(ctx.getSource().getPlayerOrException()); return 1; }))

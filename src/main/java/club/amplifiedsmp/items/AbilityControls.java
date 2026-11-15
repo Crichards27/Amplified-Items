@@ -30,7 +30,9 @@ final class AbilityControls {
         return switch (ability) {
             case "crit_combo" -> List.of("Automatic. Land " + config.spiderComboHits + " critical hits on one enemy.",
                 "Applies Poison II for " + config.spiderPoisonSeconds + "s.");
-            case "rulers_command" -> List.of("Capture a mob within 5 blocks.", "Cast again to summon or recall it.");
+            case "rulers_command" -> List.of("Summon four royal knights against the enemy player you aim at.",
+                "Range: " + config.summonTargetRange + " blocks. Lifetime: " + config.summonMaxSeconds + "s.",
+                "Needs clear solid ground. One army per player; no capture or recall.");
             case "execution" -> List.of("Mark an enemy for " + config.executionSeconds + "s.",
                 "The marked enemy takes " + Math.round((config.executionMultiplier - 1) * 100) + "% more damage.");
             case "venom_shot" -> List.of("Fire an arrow that splashes nearby enemies.",

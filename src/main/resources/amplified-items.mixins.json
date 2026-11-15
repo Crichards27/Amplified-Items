@@ -12,7 +12,6 @@
     "PlayerMixin",
     "BowMixin",
     "ProjectileWeaponMixin",
-    "LivingFlagsAccess",
     "AltarDisplayAccess$Base",
     "AltarDisplayAccess$Item",
     "AltarDisplayAccess$Text",

@@ -4,10 +4,11 @@ Downloads compile dependencies into build/direct-cache, never bundles Minecraft.
 No Gradle, native sockets, mappings or third-party Python packages are needed.
 """
 import concurrent.futures, hashlib, json, os, pathlib, shutil, subprocess, sys, urllib.request, zipfile
+from package_release import project_version, write_zip, build_datapack
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CACHE = pathlib.Path(os.environ.get('AMPLIFIED_BUILD_CACHE', ROOT/'build/direct-cache')).resolve()
 CP = CACHE/'classpath'
-VERSION = '1.7.0'
+VERSION = project_version(ROOT)
 def fetch(url, path, sha1=None, sha256=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     expected = sha256 or sha1
@@ -56,22 +57,33 @@ def main():
         argfile.write_text('\n'.join('"'+s.replace('\\','/').replace('"','\\"')+'"' for s in arguments),encoding='utf-8')
         subprocess.run([javac,'@'+str(argfile)],cwd=ROOT,check=True)
     compile_sources(ROOT/'src/main/java',classes)
+    # Match Gradle's runtime classpath before tests: metadata and bundled pack
+    # are required by the real PackHost HTTP regressions, not just by packaging.
+    pack=ROOT/f'build/distributions/amplified-items-resources-{VERSION}.zip';pack.parent.mkdir(parents=True,exist_ok=True)
+    write_zip(pack, {p.relative_to(ROOT/'resourcepack').as_posix(): p.read_bytes()
+                    for p in sorted((ROOT/'resourcepack').rglob('*')) if p.is_file()})
+    build_datapack(ROOT, ROOT/f'build/distributions/amplified-items-datapack-{VERSION}.zip')
+    for p in sorted((ROOT/'src/main/resources').rglob('*')):
+        if p.is_file():
+            relative = p.relative_to(ROOT/'src/main/resources')
+            destination = classes/relative; destination.parent.mkdir(parents=True,exist_ok=True)
+            data = p.read_bytes()
+            destination.write_bytes(data.replace(b'${version}',VERSION.encode()) if relative.as_posix()=='fabric.mod.json' else data)
+    bundled = classes/'bundled'/pack.name; bundled.parent.mkdir(parents=True,exist_ok=True); shutil.copyfile(pack,bundled)
     testclasses=ROOT/'build/direct-test-classes';shutil.rmtree(testclasses,ignore_errors=True)
     compile_sources(ROOT/'src/test/java',testclasses,os.pathsep+str(classes))
-    subprocess.run([java,'-ea','-cp',classpath+os.pathsep+str(classes)+os.pathsep+str(testclasses),'club.amplifiedsmp.items.LogicChecks'],check=True,cwd=ROOT)
-    pack=ROOT/f'build/distributions/amplified-items-resources-{VERSION}.zip';pack.parent.mkdir(parents=True,exist_ok=True)
-    with zipfile.ZipFile(pack,'w',zipfile.ZIP_DEFLATED) as out:
-        for p in sorted((ROOT/'resourcepack').rglob('*')):
-            if p.is_file():out.write(p,p.relative_to(ROOT/'resourcepack'))
+    for source in sorted((ROOT/'src/test/java').rglob('*Checks.java')):
+        main_class = '.'.join(source.relative_to(ROOT/'src/test/java').with_suffix('').parts)
+        subprocess.run([java,'-ea','-cp',str(classes)+os.pathsep+str(testclasses)+os.pathsep+classpath,main_class],check=True,cwd=ROOT)
     target=ROOT/f'build/libs/amplified-items-{VERSION}.jar';target.parent.mkdir(parents=True,exist_ok=True)
-    with zipfile.ZipFile(target,'w',zipfile.ZIP_DEFLATED) as out:
-        for p in sorted(classes.rglob('*.class')):out.write(p,p.relative_to(classes))
-        for p in sorted((ROOT/'src/main/resources').rglob('*')):
-            if p.is_file():out.writestr(str(p.relative_to(ROOT/'src/main/resources')).replace('\\','/'),p.read_bytes().replace(b'${version}',VERSION.encode()))
-        for p in sorted((ROOT/'resourcepack/assets').rglob('*')):
-            if p.is_file(): out.write(p,p.relative_to(ROOT/'resourcepack'))
-        out.write(pack,'bundled/'+pack.name)
-    # Also produce example configuration from the same Java defaults.
+    entries = {p.relative_to(classes).as_posix(): p.read_bytes() for p in sorted(classes.rglob('*.class'))}
+    entries.update({p.relative_to(ROOT/'src/main/resources').as_posix(): p.read_bytes().replace(b'${version}', VERSION.encode())
+                    for p in sorted((ROOT/'src/main/resources').rglob('*')) if p.is_file()})
+    entries.update({p.relative_to(ROOT/'resourcepack').as_posix(): p.read_bytes()
+                    for p in sorted((ROOT/'resourcepack/assets').rglob('*')) if p.is_file()})
+    entries['bundled/'+pack.name] = pack.read_bytes()
+    entries['LICENSE'] = (ROOT/'LICENSE').read_bytes()
+    write_zip(target, entries)
     if '--verification' in sys.argv:
         verify=ROOT/'build/verification-classes';shutil.rmtree(verify,ignore_errors=True)
         compile_sources(ROOT/'verification',verify,os.pathsep+str(classes))

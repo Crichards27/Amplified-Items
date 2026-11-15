@@ -9,7 +9,7 @@ import java.util.*;
 
 public final class WeaponConfig {
     public static final Gson JSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
-    private static final int CONFIG_VERSION = 9;
+    private static final int CONFIG_VERSION = 10;
     public int configVersion = CONFIG_VERSION;
     public double executionMultiplier = 1.30;
     public int executionSeconds = 30;
@@ -60,11 +60,8 @@ public final class WeaponConfig {
     public int bloodlustBuildSeconds = 10;
     public double bloodlustBonus = 0.20;
     public int summonMaxSeconds = 60;
-    public int summonIdleSeconds = 10;
     public double summonMeleeDamage = 4;
     public double summonTargetRange = 24;
-    public List<String> captureDenylist = new ArrayList<>();
-    public boolean allowCapturingOtherPlayersPets = false;
     public boolean pvpHeadDrops = true;
     public Map<String, String> altarEventRequirements = new LinkedHashMap<>();
     public boolean resourcePackHostEnabled = false;
@@ -74,8 +71,8 @@ public final class WeaponConfig {
     public boolean resourcePackRequired = true;
     public List<WeaponDefinition> weapons = new ArrayList<>(List.of(
         new WeaponDefinition("kings_decree", "King's Decree", "minecraft:iron_sword", "amplified_items:kings_decree",
-            "rulers_command", "execution", "rulers_authority", 3, 45,
-            List.of("Ruler's Command: capture, summon, or recall a mob", "Execution", "Authority: nearby players reduce damage")),
+            "rulers_command", "execution", "rulers_authority", 45, 45,
+            List.of("Ruler's Command: summon four royal knights against an aimed enemy player", "Execution", "Authority: nearby players reduce damage")),
         new WeaponDefinition("venombolt", "VenomBolt", "minecraft:crossbow", "amplified_items:venombolt",
             "venom_shot", "grapple_hook", "none", 8, 5,
             List.of("Venom Shot", "Grapple Hook", "Poison II splash for 10 seconds")),
@@ -138,14 +135,22 @@ public final class WeaponConfig {
                 if (previousVersion < 8 && w.id().equals("bloodfang") && baseItem.equals("minecraft:netherite_sword")) {
                     baseItem = "minecraft:netherite_axe";
                 }
+                double commandCooldown = w.primaryCooldownSeconds();
+                if (previousVersion < 10 && w.id().equals("kings_decree")) {
+                    if (commandCooldown == 3) commandCooldown = 45;
+                    if (lore != null) lore = lore.stream().map(WeaponConfig::knightLore).toList();
+                }
                 return new WeaponDefinition(w.id(), w.name(), baseItem, w.model(), w.primary(), w.secondary(),
-                    w.passive(), w.primaryCooldownSeconds(), w.secondaryCooldownSeconds(), lore, w.enabled(),
+                    w.passive(), commandCooldown, w.secondaryCooldownSeconds(), lore, w.enabled(),
                     new RitualRecipe(ingredients));
             });
             config.configVersion = CONFIG_VERSION;
             config.validate();
             var merged = JSON.toJsonTree(config).getAsJsonObject();
             merged.entrySet().forEach(entry -> document.add(entry.getKey(), entry.getValue()));
+            document.remove("captureDenylist");
+            document.remove("allowCapturingOtherPlayersPets");
+            document.remove("summonIdleSeconds");
             Path temporary = Files.createTempFile(path.getParent(), "items-config-", ".json");
             try {
                 Files.writeString(temporary, JSON.toJson(document));
@@ -215,11 +220,11 @@ public final class WeaponConfig {
         bounded(bloodlustBuildSeconds, 1, 60, "bloodlustBuildSeconds");
         bounded(bloodlustBonus, 0, 1, "bloodlustBonus");
         bounded(summonMaxSeconds, 1, 3600, "summonMaxSeconds");
-        bounded(summonIdleSeconds, 1, 300, "summonIdleSeconds");
+
         bounded(summonMeleeDamage, 0.1, 100, "summonMeleeDamage");
         bounded(summonTargetRange, 1, 64, "summonTargetRange");
         bounded(resourcePackPort, 1024, 65535, "resourcePackPort");
-        if (captureDenylist == null || weapons == null || resourcePackPublicUrl == null || resourcePackBindAddress == null)
+        if (weapons == null || resourcePackPublicUrl == null || resourcePackBindAddress == null)
             throw new IllegalArgumentException("Lists and resource-pack settings cannot be null");
         Set<String> ids = new HashSet<>();
         for (WeaponDefinition w : weapons) {
@@ -241,6 +246,14 @@ public final class WeaponConfig {
             if (!("http".equals(u.getScheme()) || "https".equals(u.getScheme())) || u.getHost() == null)
                 throw new IllegalArgumentException("resourcePackPublicUrl must be a public http(s) ZIP URL");
         }
+    }
+
+    private static String knightLore(String line) {
+        return switch (line) {
+            case "Ruler's Command: capture, summon, or recall a mob", "Aim at a nearby mob to capture it",
+                    "summon / recall" -> "Ruler's Command: summon four royal knights against an aimed enemy player";
+            default -> line;
+        };
     }
 
     static String abilityLore(String line) {

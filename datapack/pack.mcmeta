@@ -1,0 +1,7 @@
+{
+  "pack": {
+    "description": "Amplified Items recipes (Fabric mod required for abilities)",
+    "min_format": [121, 0],
+    "max_format": [121, 0]
+  }
+}

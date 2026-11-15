@@ -74,7 +74,10 @@ final class ReaperHearts {
 
     static void clearSpeed(ServerPlayer player) {
         var owned = SPEED.remove(player.getUUID());
-        if (owned != null && owned == player.getEffect(MobEffects.SPEED)) player.removeEffect(MobEffects.SPEED);
+        if (owned != null && owned == player.getEffect(MobEffects.SPEED)
+                && owned.getAmplifier() == 0 && owned.getDuration() >= 0 && owned.getDuration() <= 15) {
+            player.removeEffect(MobEffects.SPEED);
+        }
     }
 
     static void reset() { SPEED.clear(); }

@@ -1,281 +1,292 @@
 package club.amplifiedsmp.items;
 
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.*;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.*;
-import net.minecraft.util.ProblemReporter;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.*;
-import net.minecraft.world.entity.monster.Monster;
-import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.storage.*;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.phys.Vec3;
 import java.io.IOException;
 import java.util.*;
 
+/** Temporary, player-commanded knights. The ledger is read only for legacy pet recovery. */
 public final class Summons {
+    public static final String KNIGHT_TAG = "amplified_royal_knight";
+    public static final int KNIGHT_COUNT = 4;
     private static final class Active {
-        final UUID staff;
-        final Mob mob;
-        final UUID owner;
-        long expires;
-        long idleSince;
-        LivingEntity target;
-        Active(UUID staff, Mob mob, UUID owner) {
-            this.staff = staff; this.mob = mob; this.owner = owner;
+        final UUID staff, owner;
+        final IronGolem mob;
+        final ServerPlayer target;
+        final long expires;
+        long nextAttack;
+        Active(UUID staff, ServerPlayer owner, IronGolem mob, ServerPlayer target) {
+            this.staff = staff; this.owner = owner.getUUID(); this.mob = mob; this.target = target;
             expires = AmplifiedItems.tick + AmplifiedItems.CONFIG.summonMaxSeconds * 20L;
-            idleSince = AmplifiedItems.tick;
+            nextAttack = AmplifiedItems.tick;
         }
     }
     private final MinecraftServer server;
     private final SummonLedger ledger;
     private final Map<UUID, Active> active = new HashMap<>();
     private final Set<Entity> pendingLoads = new LinkedHashSet<>();
+    private final Set<UUID> recoveryErrors = new HashSet<>();
+
     public Summons(MinecraftServer server) throws IOException {
         this.server = server;
+        RoyalKnightVisuals.init();
         ledger = new SummonLedger(server.getWorldPath(LevelResource.ROOT).resolve("data/amplified-items/summons.json"));
     }
-    public boolean ownedBy(Entity e, UUID owner) {
-        Active a = active.get(e.getUUID()); return a != null && a.owner.equals(owner);
+    public boolean ownedBy(Entity entity, UUID owner) {
+        Active knight = active.get(entity.getUUID());
+        return knight != null && knight.mob == entity && knight.owner.equals(owner);
     }
-    public boolean controlled(Entity e) { return active.containsKey(e.getUUID()); }
+    public boolean controlled(Entity entity) {
+        Active knight = active.get(entity.getUUID());
+        return knight != null && knight.mob == entity;
+    }
     public String status(ItemStack item) {
-        var e = ledger.get(WeaponItems.instance(item)); return e == null ? "Empty" : e.state.toString();
+        UUID staff = WeaponItems.instance(item);
+        return active.values().stream().anyMatch(a -> a.staff.equals(staff)) ? "Knights active" : "Ready";
     }
     public boolean use(ServerPlayer player, ItemStack item, LivingEntity clicked) {
         UUID staff = WeaponItems.instance(item);
-        if (staff == null) { Abilities.message(player, "Invalid staff. Ask an admin to replace it."); return false; }
-        var entry = ledger.get(staff);
-        if (entry != null && entry.state == SummonLedger.State.ACTIVE) {
-            Active a = active.get(entry.entity);
-            if (a == null) { Abilities.message(player, "Your summon is in an unloaded chunk. It will recall when loaded."); return false; }
-            if (!a.owner.equals(player.getUUID())) { Abilities.message(player, "This summon belongs to another player until recalled."); return false; }
-            return recall(a);
-        }
-        if (entry == null || entry.state == SummonLedger.State.DEAD) {
-            LivingEntity target = clicked != null ? clicked : Combat.aimed(player, 5);
-            if (!(target instanceof Mob mob)) { Abilities.message(player, "Aim at a mob within 5 blocks and use /ability 1 with the staff."); return false; }
-            return capture(player, staff, mob);
-        }
-        return summon(player, staff, entry);
-    }
-    private boolean capture(ServerPlayer player, UUID staff, Mob mob) {
-        if (mob.entityTags().contains("amplified_ritual_defender")) {
-            Abilities.message(player, "Altar defenders cannot be captured.");
+        if (staff == null || !player.isAlive() || player.isSpectator() || player.isCreative()) return false;
+        // Cloned items and different staffs cannot multiply one player's army.
+        if (active.values().stream().anyMatch(a -> a.owner.equals(player.getUUID()) || a.staff.equals(staff))) {
+            Abilities.message(player, "Your royal knights are already deployed.");
             return false;
         }
-        if (!mob.isAlive() || mob.isRemoved() || mob.distanceToSqr(player) > 25 || !player.hasLineOfSight(mob)
-                || mob.isPassenger() || mob.isVehicle() || controlled(mob)
-                || ledger.retired(mob.getUUID()) || mob.entityTags().contains("cw_summon")) {
-            Abilities.message(player, "That mob cannot be captured here. Dismount it and remove passengers first."); return false;
+        LivingEntity aimed = Combat.aimed(player, AmplifiedItems.CONFIG.summonTargetRange);
+        if (!(aimed instanceof ServerPlayer target) || !validTarget(player, target)
+                || !player.hasLineOfSight(target)) {
+            Abilities.message(player, "Aim at an enemy player within " + (int) AmplifiedItems.CONFIG.summonTargetRange + " blocks.");
+            return false;
         }
-        if (AmplifiedItems.CONFIG.captureDenylist.contains(BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString())) {
-            Abilities.message(player, "This mob is blocked by the server's capture list."); return false;
-        }
-        if (mob instanceof TamableAnimal pet && pet.getOwnerReference() != null
-                && !pet.getOwnerReference().matches(player) && !AmplifiedItems.CONFIG.allowCapturingOtherPlayersPets) {
-            Abilities.message(player, "You cannot capture another player's pet."); return false;
-        }
-        try {
-            String snapshot = snapshot(mob).toString();
-            ledger.transaction(() -> {
-                ledger.put(new SummonLedger.Entry(staff, player.getUUID(), mob.getUUID(), snapshot, SummonLedger.State.STORED));
-                ledger.retire(mob.getUUID());
-            }); // Commit first; retired IDs suppress stale entities after an interrupted world save.
-            mob.discard();
-            Abilities.message(player, "Captured " + mob.getName().getString() + ". Use Ruler's Command again to summon.");
-            return true;
-        } catch (Exception e) { return fail(player, e); }
-    }
-    private boolean summon(ServerPlayer player, UUID staff, SummonLedger.Entry entry) {
-        try {
-            CompoundTag tag = TagParser.parseCompoundFully(entry.snapshot);
-            tag.remove("UUID"); tag.remove("Leash"); tag.remove("leash"); tag.remove("Passengers");
-            Entity entity = EntityType.loadEntityRecursive(tag, player.level(),
-                new EntitySpawnRequest(EntitySpawnReason.COMMAND, true), EntityProcessor.NOP);
-            if (!(entity instanceof Mob mob)) throw new IOException("Stored entity is no longer a mob");
-            Vec3 spot = player.position().add(player.getLookAngle().multiply(2.5, 0, 2.5));
-            mob.setPos(spot.x, spot.y + 0.2, spot.z);
-            if (!player.level().hasChunkAt(mob.blockPosition()) || !player.level().noCollision(mob)
-                    || !player.level().getWorldBorder().isWithinBounds(mob.getBoundingBox())) {
-                Abilities.message(player, "Not enough clear space to summon this mob."); return false;
+        var planned = new ArrayList<IronGolem>();
+        for (int radius = 0; radius < 3 && planned.size() < KNIGHT_COUNT; radius++) {
+            for (int direction = 0; direction < 8 && planned.size() < KNIGHT_COUNT; direction++) {
+                double angle = direction * Math.PI / 4;
+                double distance = 2.5 + radius * 1.5;
+                IronGolem golem = createKnight(player.level());
+                for (int dy : new int[] {0, 1, -1}) {
+                    golem.setPos(player.getX() + Math.cos(angle) * distance,
+                        player.getY() + dy, player.getZ() + Math.sin(angle) * distance);
+                    if (safeSpot(golem) && planned.stream().noneMatch(other -> other.getBoundingBox().inflate(.1).intersects(golem.getBoundingBox()))) {
+                        planned.add(golem);
+                        break;
+                    }
+                }
             }
-            mob.setNoAi(false);
-            mob.setPersistenceRequired();
-            mob.setTarget(null);
-            mob.addTag("cw_summon");
-            ledger.transaction(() -> {
-                entry.owner = player.getUUID(); entry.entity = mob.getUUID(); entry.state = SummonLedger.State.ACTIVE;
-            });
-            Active a = new Active(staff, mob, player.getUUID());
-            a.target = Combat.aimed(player, AmplifiedItems.CONFIG.summonTargetRange);
-            if (a.target != null && !Combat.canAffect(player, a.target)) a.target = null;
-            active.put(mob.getUUID(), a);
-            if (!player.level().addFreshEntity(mob)) {
-                active.remove(mob.getUUID()); entry.state = SummonLedger.State.STORED; ledger.save();
-                Abilities.message(player, "Summon was blocked by the server."); return false;
-            }
-            Abilities.message(player, "Summoned " + mob.getName().getString() + ". Use Ruler's Command again to recall.");
-            return true;
-        } catch (Exception e) { return fail(player, e); }
-    }
-    private CompoundTag snapshot(Mob mob) throws IOException {
-        var out = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, server.registryAccess());
-        if (!mob.save(out)) throw new IOException("Mob refused serialization");
-        return out.buildResult();
-    }
-    private boolean recall(Active a) {
-        Mob mob = a.mob;
-        Entity.RemovalReason removal = mob.getRemovalReason();
-        if (mob.isDeadOrDying() || (removal != null && removal.shouldDestroy())) {
-            died(mob);
-            return false;
         }
-        if (removal != null && removal != Entity.RemovalReason.UNLOADED_TO_CHUNK) {
-            // A dimension transfer or passenger unload can reintroduce the mob under the same UUID.
-            active.remove(mob.getUUID(), a);
+        if (planned.size() != KNIGHT_COUNT) {
+            planned.forEach(Entity::discard);
+            Abilities.message(player, "Four knights need clear, solid ground nearby.");
             return false;
         }
         try {
-            var entry = ledger.get(a.staff);
-            // Minecraft still serializes mobs removed for a chunk unload.
-            CompoundTag saved = snapshot(mob);
-            CompoundTag original = TagParser.parseCompoundFully(entry.snapshot);
-            saved.putBoolean("NoAI", original.getBooleanOr("NoAI", false));
-            saved.putBoolean("PersistenceRequired", original.getBooleanOr("PersistenceRequired", false));
-            saved.remove("Tags");
-            if (original.contains("Tags")) saved.put("Tags", original.get("Tags").copy());
-            ledger.transaction(() -> {
-                entry.snapshot = saved.toString(); entry.state = SummonLedger.State.STORED;
-                ledger.retire(mob.getUUID());
-            });
-            active.remove(mob.getUUID(), a);
-            if (!mob.isRemoved()) mob.discard();
-            var owner = server.getPlayerList().getPlayer(a.owner);
-            if (owner != null) Abilities.message(owner, "Your surviving summon returned to the staff.");
-            return true;
-        } catch (Exception e) {
-            // If the chunk has already unloaded, the saved entity can retry on its next load.
-            if (mob.isRemoved()) active.remove(mob.getUUID(), a);
-            AmplifiedItems.LOG.error("Cannot recall summon; keeping its active record", e);
+            for (IronGolem golem : planned) {
+                golem.setTarget(target);
+                if (!player.level().addFreshEntity(golem) || !RoyalKnightVisuals.attach(golem))
+                    throw new IllegalStateException("Knight or visual spawn blocked");
+                // All insertion callbacks are queued; no AI tick runs during this atomic operation.
+                active.put(golem.getUUID(), new Active(staff, player, golem, target));
+            }
+        } catch (RuntimeException failure) {
+            for (IronGolem golem : planned) {
+                active.remove(golem.getUUID());
+                RoyalKnightVisuals.cleanup(golem);
+                golem.discard();
+            }
+            AmplifiedItems.LOG.warn("Royal knight deployment rolled back", failure);
+            Abilities.message(player, "The server could not deploy all four knights.");
             return false;
         }
+        Abilities.message(player, "Four royal knights pursue " + target.getName().getString() + ".");
+        return true;
     }
-    public void died(LivingEntity entity) {
-        Active a = active.remove(entity.getUUID());
-        if (a == null) return;
-        var entry = ledger.get(a.staff);
-        entry.state = SummonLedger.State.DEAD;
-        ledger.retire(entity.getUUID());
-        try { ledger.save(); } catch (IOException e) { AmplifiedItems.LOG.error("Could not save dead summon", e); }
-        ServerPlayer owner = server.getPlayerList().getPlayer(a.owner);
-        if (owner != null) Abilities.message(owner, "Your summon died. Capture a new mob.");
+    private IronGolem createKnight(ServerLevel level) {
+        IronGolem golem = new IronGolem(EntityTypes.IRON_GOLEM, level) {
+            @Override protected void dropFromLootTable(ServerLevel world, DamageSource source, boolean playerKill) {}
+            @Override protected void dropCustomDeathLoot(ServerLevel world, DamageSource source, boolean playerKill) {}
+            @Override protected int getBaseExperienceReward(ServerLevel world) { return 0; }
+            @Override public boolean shouldBeSaved() { return false; }
+        };
+        golem.addTag(KNIGHT_TAG);
+        golem.setPlayerCreated(true);
+        golem.setPersistenceRequired();
+        golem.setCanPickUpLoot(false);
+        return golem;
     }
+    private boolean safeSpot(Mob mob) {
+        ServerLevel level = (ServerLevel) mob.level();
+        var box = mob.getBoundingBox();
+        for (int x = (int) Math.floor(box.minX / 16); x <= (int) Math.floor(box.maxX / 16); x++)
+            for (int z = (int) Math.floor(box.minZ / 16); z <= (int) Math.floor(box.maxZ / 16); z++)
+                if (!level.hasChunk(x, z)) return false;
+        BlockPos below = mob.blockPosition().below();
+        return level.getWorldBorder().isWithinBounds(box) && level.noCollision(mob)
+            && !level.containsAnyLiquid(box) && level.getBlockState(below).isFaceSturdy(level, below, Direction.UP);
+    }
+    private boolean validTarget(ServerPlayer owner, ServerPlayer target) {
+        double range = AmplifiedItems.CONFIG.summonTargetRange;
+        return owner.isAlive() && !owner.isRemoved() && !owner.isSpectator() && !owner.isCreative()
+            && server.getPlayerList().getPlayer(owner.getUUID()) == owner
+            && server.getPlayerList().getPlayer(target.getUUID()) == target
+            && !target.isRemoved() && target.level() == owner.level()
+            && owner.distanceToSqr(target) <= range * range && Combat.canAffect(owner, target);
+    }
+    private void dismiss(Active knight) {
+        if (knight == null) return;
+        active.remove(knight.mob.getUUID(), knight);
+        RoyalKnightVisuals.cleanup(knight.mob);
+        knight.mob.getNavigation().stop();
+        knight.mob.setTarget(null);
+        if (!knight.mob.isRemoved()) knight.mob.discard();
+    }
+    public void died(LivingEntity entity) { dismiss(active.get(entity.getUUID())); }
     public void loaded(Entity entity) {
-        if (entity.entityTags().contains("cw_projectile")) {
-            entity.discard();
-        } else if (ledger.retired(entity.getUUID()) || entity.entityTags().contains("cw_summon")) {
-            // Minecraft may be iterating an entity section in this callback.
+        if (entity.entityTags().contains("cw_projectile")) entity.discard();
+        else if (entity.entityTags().contains(KNIGHT_TAG) || entity.entityTags().contains("cw_summon") || ledger.retired(entity.getUUID()))
             pendingLoads.add(entity);
+    }
+    private void reconcileLoads() {
+        var loaded = List.copyOf(pendingLoads);
+        pendingLoads.clear();
+        for (Entity entity : loaded) {
+            if (entity.isRemoved() || controlled(entity)) continue;
+            if (entity.entityTags().contains(KNIGHT_TAG) || ledger.retired(entity.getUUID())) {
+                if (entity instanceof IronGolem golem) RoyalKnightVisuals.cleanup(golem);
+                entity.discard();
+            }
+            else if (entity instanceof Mob mob && entity.entityTags().contains("cw_summon")) {
+                var entry = ledger.entries().stream().filter(e -> e.entity.equals(mob.getUUID())
+                    && e.state == SummonLedger.State.ACTIVE).findFirst().orElse(null);
+                try {
+                    if (entry != null) {
+                        CompoundTag original = TagParser.parseCompoundFully(entry.snapshot);
+                        mob.setNoAi(original.getBooleanOr("NoAI", false));
+                        // Native tags, ownership, current health and equipment remain untouched.
+                        mob.setTarget(null);
+                    }
+                    mob.removeTag("cw_summon");
+                    if (entry != null) {
+                        ((ServerLevel) mob.level()).save(null, true, false);
+                        ledger.transaction(() -> entry.state = SummonLedger.State.RESTORED);
+                    }
+                } catch (Exception error) {
+                    AmplifiedItems.LOG.error("Cannot finish returning legacy live pet; snapshot retained", error);
+                    pendingLoads.add(mob);
+                }
+            }
         }
     }
-
-    private void reconcileLoads() {
-        var batch = List.copyOf(pendingLoads);
-        pendingLoads.clear();
-        for (Entity entity : batch) {
-            if (entity.isRemoved()) continue;
-            UUID id = entity.getUUID();
-            if (ledger.retired(id)) {
-                entity.discard();
-                continue;
+    private Mob legacyMob(SummonLedger.Entry entry, ServerLevel level) throws Exception {
+        CompoundTag tag = TagParser.parseCompoundFully(entry.snapshot);
+        tag.remove("UUID"); tag.remove("Leash"); tag.remove("leash"); tag.remove("Passengers");
+        Entity entity = EntityType.loadEntityRecursive(tag, level,
+            new EntitySpawnRequest(EntitySpawnReason.COMMAND, true), EntityProcessor.NOP);
+        if (!(entity instanceof Mob mob)) throw new IOException("Legacy snapshot is no longer a mob: " + entry.staff);
+        mob.removeTag("cw_summon");
+        return mob;
+    }
+    private void recoverStoredPets() {
+        for (var entry : List.copyOf(ledger.entries())) {
+            if (entry.state != SummonLedger.State.STORED && entry.state != SummonLedger.State.RETURNING) continue;
+            if (recoveryErrors.contains(entry.staff)) continue;
+            ServerPlayer owner = server.getPlayerList().getPlayer(entry.owner);
+            if (owner == null || !owner.isAlive() || owner.isSpectator()) continue;
+            try {
+                Mob probe = legacyMob(entry, owner.level());
+                // Knight placement proves dry ground, not a legacy pet's habitat. Keep aquatic
+                // snapshots AND committed RETURNING plans for admin recovery, even if their
+                // recovery UUID already exists: existence alone cannot prove a safe return.
+                if (!LegacyRecoveryPolicy.allowsAutomaticDryLandReturn(probe.getClass())) continue;
+                if (entry.state == SummonLedger.State.STORED) {
+                    boolean found = false;
+                    for (int radius = 2; radius <= 6 && !found; radius += 2) {
+                        for (int direction = 0; direction < 8 && !found; direction++) {
+                            double angle = direction * Math.PI / 4;
+                            probe.setPos(owner.getX() + Math.cos(angle) * radius, owner.getY(), owner.getZ() + Math.sin(angle) * radius);
+                            found = safeSpot(probe);
+                        }
+                    }
+                    if (!found) continue; // Keep the snapshot; never delete a pet when space is blocked.
+                    ledger.transaction(() -> {
+                        entry.recoveryEntity = UUID.randomUUID();
+                        entry.recoveryDimension = owner.level().dimension().identifier().toString();
+                        entry.recoveryX = probe.getX(); entry.recoveryY = probe.getY(); entry.recoveryZ = probe.getZ();
+                        entry.state = SummonLedger.State.RETURNING;
+                    });
+                }
+                ServerLevel level = java.util.stream.StreamSupport.stream(server.getAllLevels().spliterator(), false)
+                    .filter(l -> l.dimension().identifier().toString().equals(entry.recoveryDimension)).findFirst().orElse(null);
+                if (level == null || level.noSave()) continue;
+                BlockPos position = BlockPos.containing(entry.recoveryX, entry.recoveryY, entry.recoveryZ);
+                // Load the committed recovery chunk before checking UUIDs: an unloaded saved pet is not absent.
+                level.getChunk(position);
+                level.waitForEntities(new ChunkPos(position.getX() >> 4, position.getZ() >> 4), 0);
+                Entity restored = level.getEntityInAnyDimension(entry.recoveryEntity);
+                if (restored == null) {
+                    Mob pet = legacyMob(entry, level);
+                    pet.setUUID(entry.recoveryEntity);
+                    pet.setPos(entry.recoveryX, entry.recoveryY, entry.recoveryZ);
+                    if (!safeSpot(pet) || !level.addFreshEntity(pet)) continue;
+                }
+                // Flush native entity storage BEFORE acknowledging return. A crash can retry the same UUID, not clone a pet.
+                level.save(null, true, false);
+                ledger.transaction(() -> entry.state = SummonLedger.State.RESTORED);
+                Abilities.message(owner, "Your previously captured mob has been returned safely. King's Decree now summons royal knights.");
+            } catch (Exception error) {
+                recoveryErrors.add(entry.staff);
+                AmplifiedItems.LOG.error("Legacy pet recovery deferred; original snapshot retained for admin recovery: " + entry.staff, error);
             }
-            if (!(entity instanceof Mob mob)) continue;
-            Active current = active.get(id);
-            if (current != null && current.mob == mob) continue;
-            var entry = ledger.entries().stream()
-                .filter(e -> e.entity.equals(id) && e.state == SummonLedger.State.ACTIVE).findFirst().orElse(null);
-            if (entry == null) {
-                mob.discard();
-                continue;
-            }
-            mob.setNoAi(false);
-            Active restored = new Active(entry.staff, mob, entry.owner);
-            active.put(id, restored);
-            recall(restored);
         }
     }
     public void recallOwner(UUID owner) {
-        for (Active a : List.copyOf(active.values())) if (a.owner.equals(owner)) recall(a);
+        for (Active knight : List.copyOf(active.values())) if (knight.owner.equals(owner)) dismiss(knight);
     }
     public void stop() {
         reconcileLoads();
-        for (Active a : List.copyOf(active.values())) recall(a);
+        for (Active knight : List.copyOf(active.values())) dismiss(knight);
     }
     public void tick() {
         reconcileLoads();
-        for (Active a : List.copyOf(active.values())) {
-            Mob mob = a.mob;
-            if (mob.isRemoved() || mob.isDeadOrDying()) {
-                recall(a);
-                continue;
-            }
-            ServerPlayer owner = server.getPlayerList().getPlayer(a.owner);
-            if (owner == null || !owner.isAlive() || owner.level() != mob.level() || AmplifiedItems.tick >= a.expires
-                    || owner.distanceToSqr(mob) > 80 * 80) { recall(a); continue; }
-            if (a.target == null || !Combat.canAffect(owner, a.target) || a.target.level() != mob.level()
-                    || a.target.distanceToSqr(mob) > 64 * 64) a.target = null;
-            if (AmplifiedItems.tick % 10 == 0 && a.target == null) {
-                LivingEntity hurt = owner.getLastHurtByMob(), attacked = owner.getLastHurtMob();
-                if (hurt != null && Combat.canAffect(owner, hurt) && hurt.distanceToSqr(owner) < 24 * 24) a.target = hurt;
-                else if (attacked != null && Combat.canAffect(owner, attacked) && attacked.distanceToSqr(owner) < 24 * 24) a.target = attacked;
-                else a.target = owner.level().getEntitiesOfClass(Monster.class,
-                    mob.getBoundingBox().inflate(AmplifiedItems.CONFIG.summonTargetRange), e -> Combat.canAffect(owner, e)
-                        && !controlled(e) && mob.hasLineOfSight(e)).stream().min(Comparator.comparingDouble(mob::distanceToSqr)).orElse(null);
-            }
-            if (a.target == null) {
-                if (AmplifiedItems.tick - a.idleSince >= AmplifiedItems.CONFIG.summonIdleSeconds * 20L) recall(a);
-                else moveToward(mob, mob.distanceToSqr(owner) > 3 * 3 ? owner : null);
-                continue;
-            }
-            a.idleSince = AmplifiedItems.tick;
-            mob.getLookControl().setLookAt(a.target, 30, 30);
-            mob.getLookControl().tick();
-            double reach = Math.max(1.8, (mob.getBbWidth() + a.target.getBbWidth()) / 2 + 0.8);
-            if (mob.distanceToSqr(a.target) <= reach * reach && mob.hasLineOfSight(a.target)) {
-                if (AmplifiedItems.tick % 20 == 0) {
-                    mob.swingForAttack(InteractionHand.MAIN_HAND);
-                    // Player attribution preserves PvP checks, death messages and protection event hooks.
-                    a.target.hurtServer(owner.level(), owner.level().damageSources().playerAttack(owner), (float) AmplifiedItems.CONFIG.summonMeleeDamage);
+        if (AmplifiedItems.tick % 20 == 0) recoverStoredPets();
+        for (Active knight : List.copyOf(active.values())) {
+            IronGolem golem = knight.mob;
+            ServerPlayer owner = server.getPlayerList().getPlayer(knight.owner);
+            if (golem.isRemoved() || !golem.isAlive() || owner == null || owner.level() != golem.level()
+                    || !validTarget(owner, knight.target) || AmplifiedItems.tick >= knight.expires
+                    || owner.distanceToSqr(golem) > 80 * 80) { dismiss(knight); continue; }
+            golem.setTarget(knight.target);
+            if (golem.isWithinMeleeAttackRange(knight.target) && golem.hasLineOfSight(knight.target)) {
+                golem.getNavigation().stop();
+                if (AmplifiedItems.tick >= knight.nextAttack) {
+                    knight.nextAttack = AmplifiedItems.tick + 20;
+                    golem.level().broadcastEntityEvent(golem, (byte) 4);
+                    knight.target.hurtServer(owner.level(), owner.level().damageSources().playerAttack(owner),
+                        (float) AmplifiedItems.CONFIG.summonMeleeDamage);
                 }
-                moveToward(mob, null);
-            } else moveToward(mob, a.target);
+            } else if (AmplifiedItems.tick % 10 == 0 || golem.getNavigation().isDone()) {
+                golem.getNavigation().moveTo(knight.target, 1);
+            }
         }
     }
-    private void moveToward(Mob mob, LivingEntity target) {
-        if (target == null) {
-            mob.getNavigation().stop();
-            mob.setSpeed(0);
-            return;
-        }
-        mob.getLookControl().setLookAt(target, 30, 30);
-        if (AmplifiedItems.tick % 10 == 0 || mob.getNavigation().isDone()) {
-            mob.getNavigation().moveTo(target, 1);
-        }
-    }
-
+    /** Keep native pathfinding, physics and controls, but never run autonomous target/attack goals. */
     public void aiStep(Mob mob) {
-        mob.setTarget(null);
+        Active knight = active.get(mob.getUUID());
+        if (knight == null) return;
+        mob.setTarget(knight.target);
+        mob.getLookControl().setLookAt(knight.target, 30, 30);
         mob.getNavigation().tick();
         mob.getMoveControl().tick();
         mob.getLookControl().tick();
         mob.getJumpControl().tick();
-    }
-
-    private boolean fail(ServerPlayer player, Exception e) {
-        AmplifiedItems.LOG.error("Mob storage operation failed", e);
-        Abilities.message(player, "Storage error. Ask an admin to check the log."); return false;
     }
 }

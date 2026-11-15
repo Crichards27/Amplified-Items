@@ -79,7 +79,11 @@ public final class RuntimeChecks implements ModInitializer {
                     // Check the parked summon before the altar check drives an end-of-server tick.
                     checkStaffRestart(server);
                     checkAltarRestart(server);
-                } else run(server);
+                } else {
+                    run(server);
+                    RoyalKnightVisualChecks.run(server);
+                    club.amplifiedsmp.items.AuditRuntimeChecks.run(server);
+                }
                 System.out.println("AMPLIFIED_RUNTIME_OK " + checks);
             }
             catch (Throwable e) { System.out.println("AMPLIFIED_RUNTIME_FAILED"); e.printStackTrace(); }
@@ -112,11 +116,12 @@ public final class RuntimeChecks implements ModInitializer {
         server.overworld().addNewPlayer(p);
         return p;
     }
-    static Mob active(ServerLevel level) {
-        for (Entity entity : level.getAllEntities()) {
-            if (entity instanceof Mob mob && mob.isAlive() && AmplifiedItems.SUMMONS.controlled(mob)) return mob;
-        }
-        throw new AssertionError("No active summon");
+
+    static List<net.minecraft.world.entity.animal.golem.IronGolem> knights(ServerLevel level) {
+        return java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .filter(e -> e instanceof net.minecraft.world.entity.animal.golem.IronGolem
+                && !e.isRemoved() && AmplifiedItems.SUMMONS.controlled(e))
+            .map(net.minecraft.world.entity.animal.golem.IronGolem.class::cast).toList();
     }
     static Projectile projectile(ServerLevel level) {
         for (Entity e : level.getAllEntities()) if (e instanceof Projectile p && e.entityTags().contains("cw_projectile") && !e.isRemoved()) return p;
@@ -149,35 +154,28 @@ public final class RuntimeChecks implements ModInitializer {
         level.getGameRules().set(GameRules.PVP,true,server);
         server.setDifficulty(net.minecraft.world.Difficulty.NORMAL, true);
         level.getChunk(0,0);
+        for (int cx = -1; cx <= 0; cx++) for (int cz = -1; cz <= 0; cz++) {
+            level.setChunkForced(cx, cz, true);
+            level.getChunkSource().tick(() -> true, false);
+            level.waitForEntities(new ChunkPos(cx, cz), 0);
+        }
         for (int x=-6;x<=12;x++) for(int z=-6;z<=14;z++) level.setBlockAndUpdate(new BlockPos(x,100,z),Blocks.STONE.defaultBlockState());
         ServerPlayer owner=player(server,"TestOwner",0,0), victim=player(server,"TestTarget",0,8);
         var staff=WeaponItems.create(AmplifiedItems.CONFIG.weapons.getFirst());
         var bow=WeaponItems.create(AmplifiedItems.CONFIG.weapons.get(1));
         check(staff.get(DataComponents.ITEM_MODEL).toString().equals("amplified_items:kings_decree"),"Vanilla item_model component");
-        check(staff.has(DataComponents.UNBREAKABLE),"Staff does not break and strand its mob");
+        check(staff.has(DataComponents.UNBREAKABLE),"King's Decree is unbreakable");
         owner.setItemInHand(InteractionHand.MAIN_HAND,staff);
-        var cow=EntityTypes.COW.create(level,EntitySpawnReason.COMMAND); cow.setPos(2,101,0); cow.setHealth(7); cow.setCustomName(Component.literal("Ledger Cow")); level.addFreshEntity(cow);
-        check(AmplifiedItems.SUMMONS.use(owner,staff,cow),"Capture passive mob");
-        check(cow.isRemoved() && AmplifiedItems.SUMMONS.status(staff).equals("STORED"),"Capture removes original and commits storage");
-        check(AmplifiedItems.SUMMONS.use(owner,staff.copy(),null),"Copied staff shares the authoritative record");
-        Mob summon=active(level);
-        check(summon.getHealth()==7 && summon.getName().getString().equals("Ledger Cow"),"Summon preserves health and name");
-        summon.setPos(0,101,6.5); AmplifiedItems.tick=20; AmplifiedItems.SUMMONS.tick();
-        check(victim.getHealth()==16,"Captured passive mob attacks commanded enemy");
-        victim.setHealth(20); victim.damageCooldownTime=0;
-        summon.setHealth(3);
-        check(AmplifiedItems.SUMMONS.use(owner,staff,null),"Manual recall");
-        check(AmplifiedItems.SUMMONS.use(owner,staff,null),"Resummon survivor");
-        summon=active(level);
-        check(summon.getHealth()==3,"Recall cannot heal captured mob");
-        summon.hurtServer(level,level.damageSources().genericKill(),10000);
-        check(AmplifiedItems.SUMMONS.status(staff).equals("DEAD"),"Death consumes the stored mob");
-        AmplifiedItems.SUMMONS = new Summons(server);
-        check(AmplifiedItems.SUMMONS.status(staff).equals("DEAD"),"Death persists when ledger is reopened");
-        var zombie=EntityTypes.ZOMBIE.create(level,EntitySpawnReason.COMMAND); zombie.setPos(2,101,0); level.addFreshEntity(zombie);
-        check(AmplifiedItems.SUMMONS.use(owner,staff,zombie),"Dead slot accepts a replacement mob");
-        AmplifiedItems.SUMMONS = new Summons(server);
-        check(AmplifiedItems.SUMMONS.status(staff).equals("STORED"),"Captured mob persists when ledger is reopened");
+        check(AmplifiedItems.SUMMONS.use(owner, staff, null), "Ruler's Command summons knights without capturing a mob");
+        check(knights(level).size() == 4, "Ruler's Command creates exactly four real iron golems");
+        check(knights(level).stream().allMatch(g -> g.isInvisible() && g.getPassengers().size() == 1
+                && RoyalKnightVisuals.isVisual(g.getFirstPassenger())),
+            "Each real knight has a vanilla item_display visual passenger, not an invisible unskinned attacker");
+        var royalDisplays = knights(level).stream().map(Entity::getFirstPassenger).toList();
+        AmplifiedItems.SUMMONS.recallOwner(owner.getUUID());
+        check(royalDisplays.stream().allMatch(Entity::isRemoved), "Dismissing knights also removes every visual passenger");
+        checkLegacyPetRecovery(server, owner);
+        if (Boolean.getBoolean("amplified.verifyKnightsOnly")) { checkStaffControls(server); return; }
         check(Abilities.REGISTRY.get("execution").use(owner,staff,null),"Execution ray finds a player");
         check(Math.abs(Abilities.modifyDamage(victim,level.damageSources().playerAttack(owner),10)-13)<0.01,"Execution increases incoming damage by 30 percent");
         victim.damageCooldownTime=0; victim.setHealth(20);
@@ -289,6 +287,67 @@ public final class RuntimeChecks implements ModInitializer {
             level.removePlayerImmediately(p,Entity.RemovalReason.DISCARDED);
             server.getPlayerList().getPlayers().remove(p); server.getPlayerList().getPlayersByUUID().remove(p.getUUID());
         }
+    }
+
+    private static void checkLegacyPetRecovery(MinecraftServer server, ServerPlayer owner) throws Exception {
+        var level = owner.level();
+        var pet = EntityTypes.WOLF.create(level, EntitySpawnReason.COMMAND);
+        pet.setPos(2, 101, 2); pet.tame(owner); pet.setHealth(7);
+        pet.setCustomName(Component.literal("Upgrade Pet")); pet.addTag("pet_custom_tag");
+        var saved = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
+        check(pet.save(saved), "Legacy pet fixture serializes through real Minecraft NBT");
+        var path = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).resolve("data/amplified-items/summons.json");
+        var ledger = new SummonLedger(path);
+        UUID staff = UUID.randomUUID();
+        ledger.transaction(() -> {
+            ledger.put(new SummonLedger.Entry(staff, owner.getUUID(), pet.getUUID(), saved.buildResult().toString(), SummonLedger.State.STORED));
+            ledger.retire(pet.getUUID());
+        });
+        var aquaticRecords = new ArrayList<SummonLedger.Entry>();
+        for (var aquaticType : List.of(EntityTypes.COD, EntityTypes.SALMON, EntityTypes.AXOLOTL)) {
+            var aquatic = aquaticType.create(level, EntitySpawnReason.COMMAND);
+            aquatic.setPos(3, 101, 3);
+            aquatic.setCustomName(Component.literal("Deferred Aquatic " + aquaticRecords.size()));
+            var aquaticNbt = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
+            check(aquatic.save(aquaticNbt), "Aquatic migration fixture serializes through real Minecraft NBT");
+            var record = new SummonLedger.Entry(UUID.randomUUID(), owner.getUUID(), aquatic.getUUID(),
+                aquaticNbt.buildResult().toString(), aquaticRecords.size() == 1
+                    ? SummonLedger.State.RETURNING : SummonLedger.State.STORED);
+            if (record.state == SummonLedger.State.RETURNING) {
+                record.recoveryEntity = UUID.randomUUID();
+                record.recoveryDimension = level.dimension().identifier().toString();
+                record.recoveryX = 3; record.recoveryY = 101; record.recoveryZ = 3;
+            }
+            aquaticRecords.add(record);
+            ledger.transaction(() -> { ledger.put(record); ledger.retire(aquatic.getUUID()); });
+        }
+        AmplifiedItems.SUMMONS.stop();
+        AmplifiedItems.SUMMONS = new Summons(server);
+        AmplifiedItems.tick = Math.ceilDiv(AmplifiedItems.tick + 1, 20) * 20;
+        AmplifiedItems.SUMMONS.tick();
+        var afterAquaticRecovery = new SummonLedger(path);
+        for (var original : aquaticRecords) {
+            var retained = afterAquaticRecovery.get(original.staff);
+            check(retained.state == original.state && retained.snapshot.equals(original.snapshot)
+                    && java.util.Objects.equals(retained.recoveryEntity, original.recoveryEntity),
+                "Aquatic STORED/RETURNING snapshots and recovery plans remain intact on dry land");
+        }
+        check(java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+                .noneMatch(e -> !e.isRemoved() && e.getName().getString().startsWith("Deferred Aquatic ")),
+            "Migration never spawns captured fish or axolotls onto the owner's dry platform");
+        var recovered = java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .filter(e -> e instanceof TamableAnimal && e.getName().getString().equals("Upgrade Pet") && !e.isRemoved()).toList();
+        check(recovered.size() == 1, "Upgrade returns a stored pet once instead of destroying it");
+        var returned = (TamableAnimal) recovered.getFirst();
+        check(returned.getHealth() == 7 && returned.getOwnerReference().matches(owner)
+            && returned.entityTags().contains("pet_custom_tag") && !AmplifiedItems.SUMMONS.controlled(returned),
+            "Recovered pet retains health, tame ownership and custom tags and is not a summon");
+        AmplifiedItems.SUMMONS = new Summons(server);
+        AmplifiedItems.tick += 20; AmplifiedItems.SUMMONS.tick();
+        check(java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .filter(e -> e.getName().getString().equals("Upgrade Pet") && !e.isRemoved()).count() == 1,
+            "Reopening the legacy ledger cannot duplicate the restored pet");
+        returned.discard();
     }
 
     private static ItemStack weapon(String id) {
@@ -621,86 +680,123 @@ public final class RuntimeChecks implements ModInitializer {
 
     private static void checkStaffControls(MinecraftServer server) {
         var level = server.overworld();
-        level.setChunkForced(2, 0, true);
-        level.getChunkSource().tick(() -> true, false);
-        level.waitForEntities(new ChunkPos(2, 0), 0);
-        for (int x = 38; x <= 50; x++) for (int z = 4; z <= 14; z++) {
-            level.setBlockAndUpdate(new BlockPos(x, 100, z), Blocks.STONE.defaultBlockState());
+        for (int cx = 2; cx <= 3; cx++) for (int cz = 0; cz <= 1; cz++) {
+            level.setChunkForced(cx, cz, true);
+            level.getChunkSource().tick(() -> true, false);
+            level.waitForEntities(new ChunkPos(cx, cz), 0);
         }
-        var owner = player(server, "StaffControlCheck", 40.5, 10.5);
-        var victim = player(server, "StaffExecutionCheck", 40.5, 13.5);
+        for (int x = 32; x <= 56; x++) for (int z = 0; z <= 28; z++) {
+            level.setBlockAndUpdate(new BlockPos(x, 100, z), Blocks.STONE.defaultBlockState());
+            for (int y = 101; y <= 106; y++) level.setBlockAndUpdate(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+        }
+        var owner = player(server, "KnightControl", 40.5, 10.5);
+        var victim = player(server, "KnightTarget", 40.5, 21.5);
         var staff = weapon("kings_decree");
         owner.setItemInHand(InteractionHand.MAIN_HAND, staff);
         owner.setYRot(180);
-        var cow = EntityTypes.COW.create(level, EntitySpawnReason.COMMAND);
-        cow.setPos(41.5, 101, 10.5);
-        level.addFreshEntity(cow);
-        check(AmplifiedItems.SUMMONS.use(owner, staff, cow) && AmplifiedItems.SUMMONS.use(owner, staff, null),
-            "A staff releases a captured mob without an enemy target");
-        Mob summoned = active(level);
-        double height = summoned.getY();
-        AmplifiedItems.tick += 20;
-        AmplifiedItems.SUMMONS.tick();
-        summoned.tick();
-        AmplifiedItems.tick++;
-        AmplifiedItems.SUMMONS.tick();
-        summoned.tick();
-        check(summoned.getY() < height, "A released idle mob falls normally instead of freezing in the air");
-        var mount = EntityTypes.PIG.create(level, EntitySpawnReason.COMMAND);
-        mount.setPos(42.5, 101, 10.5);
-        level.addFreshEntity(mount);
-        check(!summoned.startRiding(mount, true, true) && !mount.startRiding(summoned, true, true),
-            "Summons cannot ride other entities or accept riders");
-        Vec3 beforePush = owner.getDeltaMovement();
-        summoned.push(owner);
-        check(owner.getDeltaMovement().equals(beforePush), "A summon cannot shove its owner");
-        for (int z = 4; z <= 14; z++) level.setBlockAndUpdate(new BlockPos(44, 101, z), Blocks.STONE.defaultBlockState());
-        owner.setPos(48.5, 101, 10.5);
-        double distance = summoned.distanceToSqr(owner);
-        AmplifiedItems.tick++;
-        AmplifiedItems.SUMMONS.tick();
-        double highest = summoned.getY();
-        for (int movement = 0; movement < 80; movement++) {
-            summoned.tick();
-            AmplifiedItems.tick++;
-            AmplifiedItems.SUMMONS.tick();
-            highest = Math.max(highest, summoned.getY());
-        }
-        check(highest > 101.4 && summoned.getX() > 44, "A released mob navigates up and over a one-block obstacle");
-        check(summoned.distanceToSqr(owner) < distance, "A released idle mob follows its owner");
-        AmplifiedItems.SUMMONS.recallOwner(owner.getUUID());
-        owner.setPos(40.5, 101, 10.5);
+        check(!AmplifiedItems.SUMMONS.use(owner, staff, victim), "A clicked player cannot bypass the aimed-target requirement");
         owner.setYRot(0);
+        victim.setPos(40.5, 101, 40.5);
+        check(!AmplifiedItems.SUMMONS.use(owner, staff, victim), "Knights reject an enemy outside the configured range");
+        victim.setPos(40.5, 101, 21.5);
+        for (int y = 101; y <= 104; y++) level.setBlockAndUpdate(new BlockPos(40, y, 15), Blocks.STONE.defaultBlockState());
+        check(!AmplifiedItems.SUMMONS.use(owner, staff, victim), "Knights reject an enemy behind a solid wall");
+        for (int y = 101; y <= 104; y++) level.setBlockAndUpdate(new BlockPos(40, y, 15), Blocks.AIR.defaultBlockState());
+        level.getGameRules().set(GameRules.PVP, false, server);
+        check(!AmplifiedItems.SUMMONS.use(owner, staff, null), "Knights cannot bypass disabled PvP");
+        level.getGameRules().set(GameRules.PVP, true, server);
+        var allies = server.getScoreboard().addPlayerTeam("knight_allies");
+        allies.setAllowFriendlyFire(true);
+        server.getScoreboard().addPlayerToTeam(owner.getScoreboardName(), allies);
+        server.getScoreboard().addPlayerToTeam(victim.getScoreboardName(), allies);
+        check(!AmplifiedItems.SUMMONS.use(owner, staff, null), "Knights never target teammates even with team friendly fire enabled");
+        server.getScoreboard().removePlayerFromTeam(victim.getScoreboardName(), allies);
+        victim.gameMode.changeGameModeForPlayer(GameType.CREATIVE);
+        check(!AmplifiedItems.SUMMONS.use(owner, staff, null), "Creative players cannot be knight targets");
+        victim.gameMode.changeGameModeForPlayer(GameType.SPECTATOR);
+        check(!AmplifiedItems.SUMMONS.use(owner, staff, null), "Spectators cannot be knight targets");
+        victim.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+        owner.gameMode.changeGameModeForPlayer(GameType.CREATIVE);
+        check(!AmplifiedItems.SUMMONS.use(owner, staff, null), "Creative casters cannot deploy a PvP army");
+        owner.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+        var cow = EntityTypes.COW.create(level, EntitySpawnReason.COMMAND);
+        cow.setPos(40.5, 101, 13.5); level.addFreshEntity(cow);
+        owner.setXRot(15);
+        check(!AmplifiedItems.SUMMONS.use(owner, staff, cow) && !cow.isRemoved(), "Ruler's Command never captures aimed mobs");
         owner.setXRot(0);
-        chooseAbility(owner, 4);
-        useItem(owner);
-        check(AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "execution", AmplifiedItems.tick) == 900
-            && AmplifiedItems.SUMMONS.status(staff).equals("STORED"),
-            "Selecting Execution takes effect on the next click without releasing the stored mob");
-        chooseAbility(owner, 2);
-        useItem(owner);
-        check(AmplifiedItems.SUMMONS.status(staff).equals("STORED"),
-            "Switching back to Ruler's Command does not clear Execution's cooldown");
-        AmplifiedItems.tick += 900;
-        var beeStaff = weapon("kings_decree");
-        owner.setItemInHand(InteractionHand.MAIN_HAND, beeStaff);
-        owner.setYRot(180);
-        var bee = EntityTypes.BEE.create(level, EntitySpawnReason.COMMAND);
-        bee.setPos(41.5, 101, 10.5);
-        level.addFreshEntity(bee);
-        check(AmplifiedItems.SUMMONS.use(owner, beeStaff, bee) && AmplifiedItems.SUMMONS.use(owner, beeStaff, null),
-            "A flying mob can be stored and released");
-        Mob flying = active(level);
-        owner.setPos(48.5, 104, 10.5);
-        double flyingDistance = flying.distanceToSqr(owner);
+        cow.discard();
+        for (int x = 34; x <= 47; x++) for (int z = 4; z <= 17; z++) for (int y = 101; y <= 105; y++) {
+            if (x != 40 || z != 10) level.setBlockAndUpdate(new BlockPos(x, y, z), Blocks.STONE.defaultBlockState());
+        }
+        // Clear the aiming corridor, but not enough width for a golem's collision box.
+        for (int z = 11; z <= 17; z++) for (int y = 101; y <= 104; y++) level.setBlockAndUpdate(new BlockPos(40, y, z), Blocks.AIR.defaultBlockState());
+        check(!AmplifiedItems.SUMMONS.use(owner, staff, null) && knights(level).isEmpty(),
+            "Insufficient space rejects the entire four-knight deployment without partial spawns");
+        for (int x = 34; x <= 47; x++) for (int z = 4; z <= 17; z++) for (int y = 101; y <= 105; y++)
+            level.setBlockAndUpdate(new BlockPos(x, y, z), Blocks.AIR.defaultBlockState());
+        AmplifiedItems.tick += 1000;
+        chooseAbility(owner, 2); useItem(owner);
+        var army = knights(level);
+        check(army.size() == 4 && AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "rulers_command", AmplifiedItems.tick) == 900,
+            "/ability 1 deploys four knights and starts the 45-second cooldown");
+        check(army.stream().allMatch(g -> g.getTarget() == victim && !g.isNoAi() && !g.shouldBeSaved()),
+            "Knights use real native AI controls, retain only the commanded player and are never saved as permanent mobs");
+        check(!AmplifiedItems.SUMMONS.use(owner, staff.copy(), null)
+            && !AmplifiedItems.SUMMONS.use(owner, weapon("kings_decree"), null) && knights(level).size() == 4,
+            "Copied staffs and multiple staffs cannot duplicate one owner's army");
+        var secondOwner = player(server, "KnightCloneUser", 44.5, 10.5);
+        secondOwner.setYRot(0);
+        check(!AmplifiedItems.SUMMONS.use(secondOwner, staff.copy(), null), "A cloned staff cannot deploy a second owner's army");
+        chooseAbility(owner, 4); AmplifiedItems.tick += 4; useItem(owner);
+        check(AmplifiedItems.COOLDOWNS.remaining(owner.getUUID(), "execution", AmplifiedItems.tick) == 0,
+            "Switching to Execution cannot bypass the shared staff cooldown");
+        var first = army.getFirst();
+        var mount = EntityTypes.PIG.create(level, EntitySpawnReason.COMMAND);
+        mount.setPos(48.5, 101, 10.5); level.addFreshEntity(mount);
+        check(!first.startRiding(mount, true, true) && !mount.startRiding(first, true, true),
+            "Knights reject real riders and mounts while allowing their cosmetic passenger");
+        Vec3 velocity = owner.getDeltaMovement(); first.push(owner);
+        check(owner.getDeltaMovement().equals(velocity), "Knight collisions cannot shove the owner");
+        // A cosmetic passenger must not freeze native movement, gravity or jumping.
+        for (int x = 32; x <= 56; x++) level.setBlockAndUpdate(new BlockPos(x, 101, 16), Blocks.STONE.defaultBlockState());
+        victim.setPermanentlyInvulnerable(true);
+        double highest = first.getY(), startingDistance = first.distanceToSqr(victim);
         for (int step = 0; step < 100; step++) {
             AmplifiedItems.tick++;
             AmplifiedItems.SUMMONS.tick();
-            flying.tick();
+            for (var golem : army) if (!golem.isRemoved()) golem.tick();
+            RoyalKnightVisuals.tick();
+            highest = Math.max(highest, first.getY());
         }
-        check(flying.distanceToSqr(owner) < flyingDistance && flying.getY() < 110,
-            "Flying summons follow through native movement without launching away");
-        AmplifiedItems.SUMMONS.recallOwner(owner.getUUID());
+        check(highest > 101.4 && first.getZ() > 16 && first.distanceToSqr(victim) < startingDistance,
+            "A visual-skinned real golem navigates and jumps over a one-block obstacle");
+        victim.setPermanentlyInvulnerable(false);
+        for (int x = 32; x <= 56; x++) level.setBlockAndUpdate(new BlockPos(x, 101, 16), Blocks.AIR.defaultBlockState());
+        for (var golem : army) golem.setPos(34, 101, 2);
+        first.setPos(40.5, 101, 20.2);
+        victim.setHealth(20); victim.damageCooldownTime = 0;
+        AmplifiedItems.tick += 20; AmplifiedItems.SUMMONS.tick();
+        check(victim.getHealth() == 16 && victim.getLastHurtByMob() == owner,
+            "Knight melee deals configured damage once with real player-owner attribution");
+        float ownerHealth = owner.getHealth();
+        first.doHurtTarget(level, owner);
+        check(owner.getHealth() == ownerHealth, "Native golem attacks cannot bypass the controlled-damage protection");
+        long dropsBefore = java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .filter(e -> !e.isRemoved() && (e instanceof ItemEntity || e instanceof ExperienceOrb)).count();
+        Entity overlay = first.getFirstPassenger();
+        first.hurtServer(level, level.damageSources().genericKill(), 10000);
+        check(first.isRemoved() && overlay.isRemoved() && !AmplifiedItems.SUMMONS.controlled(first),
+            "Knight death immediately cleans both its controller and visual");
+        long dropsAfter = java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .filter(e -> !e.isRemoved() && (e instanceof ItemEntity || e instanceof ExperienceOrb)).count();
+        check(dropsAfter == dropsBefore, "Killing temporary golems cannot farm iron, flowers, equipment or experience");
+        level.getGameRules().set(GameRules.PVP, false, server); AmplifiedItems.SUMMONS.tick();
+        check(knights(level).isEmpty(), "Disabling PvP cleans existing knights instead of leaving hostile followers");
+        level.getGameRules().set(GameRules.PVP, true, server);
+        check(AmplifiedItems.SUMMONS.use(owner, staff, null), "Knights may deploy again after the previous army is gone");
+        AmplifiedItems.tick += AmplifiedItems.CONFIG.summonMaxSeconds * 20L; AmplifiedItems.SUMMONS.tick();
+        check(knights(level).isEmpty(), "Knight lifetime expires exactly at the configured tick boundary");
+        mount.discard();
     }
     static void checkAltars(MinecraftServer server, ServerPlayer owner) throws Exception {
         ServerLevel level = owner.level();
@@ -857,67 +953,49 @@ public final class RuntimeChecks implements ModInitializer {
 
     private static final BlockPos STAFF_HOLDER = new BlockPos(14, 101, 1);
     private static final ChunkPos SUMMON_CHUNK = new ChunkPos(8, 8);
-    private static final String CHUNK_COW = "Chunk Ledger Cow";
+
 
     private static void checkStaffUnload(MinecraftServer server, ServerPlayer owner) throws Exception {
         ServerLevel level = server.overworld();
         loadSummonChunk(level);
-        owner.setPos(0.5, 101, 0.5);
-        owner.setYRot(0);
-        owner.setXRot(0);
+        for (int x = 128; x <= 143; x++) for (int z = 128; z <= 143; z++)
+            level.setBlockAndUpdate(new BlockPos(x, 100, z), Blocks.STONE.defaultBlockState());
+        owner.setPos(0.5, 101, 0.5); owner.setYRot(0); owner.setXRot(0);
+        var target = player(server, "KnightUnloadTarget", 0.5, 8.5);
         var staff = weapon("kings_decree");
         owner.setItemInHand(InteractionHand.MAIN_HAND, staff);
-        var cow = EntityTypes.COW.create(level, EntitySpawnReason.COMMAND);
-        cow.setPos(2, 101, 0.5);
-        cow.setCustomName(Component.literal(CHUNK_COW));
-        level.addFreshEntity(cow);
-        check(AmplifiedItems.SUMMONS.use(owner, staff, cow) && AmplifiedItems.SUMMONS.use(owner, staff, null),
-            "Chunk test captures and deploys a fresh cow");
-        Mob summon = active(level);
-        summon.setHealth(4);
-        summon.setPos(128.5, 101, 128.5);
+        check(AmplifiedItems.SUMMONS.use(owner, staff, null), "Unload test deploys four fresh real knights");
+        var army = knights(level);
+        var displays = army.stream().map(Entity::getFirstPassenger).toList();
+        for (int i = 0; i < army.size(); i++) army.get(i).setPos(130.5 + i * 2, 101, 132.5);
         unloadSummonChunk(level);
-        check(summon.getRemovalReason() == Entity.RemovalReason.UNLOADED_TO_CHUNK && summon.getHealth() == 4,
-            "Vanilla unload removes a living summon while preserving its health");
-
+        check(army.stream().allMatch(g -> g.getRemovalReason() == Entity.RemovalReason.UNLOADED_TO_CHUNK),
+            "Vanilla chunk unload removes every deployed knight");
         AmplifiedItems.SUMMONS.tick();
-        check(AmplifiedItems.SUMMONS.status(staff).equals("STORED"),
-            "The unloaded summon is recalled instead of being marked dead");
-        check(AmplifiedItems.SUMMONS.use(owner, staff, null), "The staff can summon again while the old chunk copy is parked");
-        Mob recalled = active(level);
-        check(recalled.getHealth() == 4 && recalled.getName().getString().equals(CHUNK_COW)
-            && !recalled.getUUID().equals(summon.getUUID()), "Recall preserves the mob's current health and name under a fresh UUID");
-        check(AmplifiedItems.SUMMONS.use(owner, staff, null), "Recall the surviving summon for the restart test");
-
+        check(army.stream().noneMatch(AmplifiedItems.SUMMONS::controlled) && displays.stream().allMatch(Entity::isRemoved)
+                && AmplifiedItems.SUMMONS.status(staff).equals("Ready"),
+            "Chunk unload releases all controllers and overlays without storing captured mobs");
+        loadSummonChunk(level); AmplifiedItems.SUMMONS.tick(); RoyalKnightVisuals.tick();
+        check(java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .noneMatch(e -> !e.isRemoved() && e.entityTags().contains(Summons.KNIGHT_TAG)),
+            "Unsaved temporary knights cannot reappear when an unloaded chunk reloads");
+        check(AmplifiedItems.SUMMONS.use(owner, staff, null), "A fresh army can deploy after the old chunk unloads");
+        AmplifiedItems.SUMMONS.recallOwner(owner.getUUID());
         level.setBlockAndUpdate(STAFF_HOLDER, Blocks.BARREL.defaultBlockState());
-        var holder = (BarrelBlockEntity) level.getBlockEntity(STAFF_HOLDER);
-        holder.setItem(0, staff);
+        ((BarrelBlockEntity) level.getBlockEntity(STAFF_HOLDER)).setItem(0, staff);
     }
 
     private static void checkStaffRestart(MinecraftServer server) {
         ServerLevel level = server.overworld();
-        level.setChunkForced(0, 0, true);
-        level.getChunkSource().tick(() -> true, false);
-        level.waitForEntities(new ChunkPos(0, 0), 0);
-        loadSummonChunk(level);
+        level.setChunkForced(0, 0, true); level.getChunkSource().tick(() -> true, false);
+        level.waitForEntities(new ChunkPos(0, 0), 0); loadSummonChunk(level);
+        AmplifiedItems.SUMMONS.tick(); RoyalKnightVisuals.tick();
         var holder = (BarrelBlockEntity) level.getBlockEntity(STAFF_HOLDER);
         ItemStack staff = holder.getItem(0);
-        check(AmplifiedItems.SUMMONS.status(staff).equals("STORED"), "The recalled mob remains stored after restarting the server");
-        var parked = java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
-            .filter(e -> e.getName().getString().equals(CHUNK_COW)).findFirst().orElseThrow();
-        AmplifiedItems.SUMMONS.tick();
-        check(parked.isRemoved(), "The old world copy is discarded safely when its chunk reloads after restart");
-
-        ServerPlayer owner = player(server, "StaffRestartCheck", 0.5, 0.5);
-        owner.setItemInHand(InteractionHand.MAIN_HAND, staff);
-        check(AmplifiedItems.SUMMONS.use(owner, staff, null), "The staff deploys the saved summon after restart");
-        Mob mob = active(level);
-        check(mob.getHealth() == 4 && mob.getName().getString().equals(CHUNK_COW),
-            "Restart preserves the recalled mob's exact health and name");
-        AmplifiedItems.SUMMONS.recallOwner(owner.getUUID());
-        level.removePlayerImmediately(owner, Entity.RemovalReason.DISCARDED);
-        server.getPlayerList().getPlayers().remove(owner);
-        server.getPlayerList().getPlayersByUUID().remove(owner.getUUID());
+        check(AmplifiedItems.SUMMONS.status(staff).equals("Ready"), "Restart never restores a previous knight army or captured-mob state");
+        check(java.util.stream.StreamSupport.stream(level.getAllEntities().spliterator(), false)
+            .noneMatch(e -> !e.isRemoved() && (e.entityTags().contains(Summons.KNIGHT_TAG) || RoyalKnightVisuals.isVisual(e))),
+            "An actual server restart leaves no temporary knight or orphan visual behind");
     }
 
     private static void loadSummonChunk(ServerLevel level) {
