@@ -7,19 +7,19 @@ Ten custom weapons and a crown for AmplifiedSMP on **Minecraft Java 26.3**. The 
 ## Install
 
 1. Use **Java 25**, **Fabric Loader 0.20.1 or later**, and **Fabric API 0.165.0+26.3** or a newer Fabric API build for Minecraft 26.3.
-2. Put `amplified-items-1.7.0.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
+2. Put `amplified-items-1.8.0.jar` in the server’s `mods` folder. Replace the old Amplified Items JAR if you’re upgrading.
 3. Start the server once to create or update `config/amplified-items/config.json`.
 4. Set up the resource pack, then restart the server. Players should accept the pack when they join.
 
 ### Singleplayer
 
-Put `amplified-items-1.7.0.jar` and Fabric API for 26.3 in your Minecraft instance’s `mods` folder. The mod includes its textures for singleplayer.
+Put `amplified-items-1.8.0.jar` and Fabric API for 26.3 in your Minecraft instance’s `mods` folder. The mod includes its textures for singleplayer.
 
 Open a world with commands enabled and run `/amplifieditems give @s bloodfang`. Hold the axe and run `/ability 1` or `/ability 2`. To test altar crafting, run `/amplifieditems altar place bloodfang ~ ~ ~2`, gather its ingredients, and switch to Survival before claiming it.
 
 ### Resource pack
 
-Upload `amplified-items-resources-1.7.0.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
+Upload `amplified-items-resources-1.8.0.zip` to your web host and set `resourcePackPublicUrl` to the direct ZIP URL. Leave `resourcePackHostEnabled` set to `false`.
 
 To host the pack through the mod instead, open TCP port `8190` and edit these keys in the existing config. Replace `YOUR_SERVER_IP` with your server’s public address.
 
@@ -51,7 +51,7 @@ A weapon’s active abilities share a cooldown. Using the other command keeps th
 ![Altar core item model with dark stone, brass trim, and a violet rune](docs/altars/altar-core.png)
 
 1. Find an altar placed by an admin. The floating weapon is the reward. The text above it lists the recipe.
-2. Bring the ingredients in your main inventory or hotbar. Six default recipes use [PvP player heads](#pvp-player-heads). You can check a recipe with `/amplifieditems altar recipe <weapon>`.
+2. Bring the ingredients in your main inventory or hotbar. Some recipes need [PvP player heads](#pvp-player-heads). Check the recipe with `/amplifieditems altar recipe <weapon>`.
 3. Right-click the **altar block** in Survival or Adventure mode. The altar takes the ingredients, gives you the weapon, and disappears. Lightning flashes and the server announces who claimed it.
 
 Each weapon can be claimed once per world save. Claims and unclaimed altars survive restarts.
@@ -70,16 +70,22 @@ The descriptions and recipes below use the default settings. Damage values are b
 
 ![King’s Decree model preview](docs/items/kings_decree.png)
 
-A royal staff that stores and summons a mob to fight for you.
+A royal staff that commands four summoned iron-golem knights against an enemy player.
 
-- **Ruler’s Command.** Aim at a mob within five blocks and cast to capture it. Cast again to summon or recall it. Released mobs fight enemies and follow you while idle. A surviving summon can return to the staff. If it dies, capture a replacement. Altar defenders and other players’ pets are excluded from capture by default.
-- **Execution.** Marks an enemy player for 30 seconds, increasing incoming enemy damage by 30%.
+![Royal knight mesh preview: steel armor, crowned visor, purple-and-gold heraldry, shield and sword; software render, not an in-game screenshot](docs/items/royal_knight.png)
+
+- **Ruler’s Command (`/ability 1`).** Aim at an enemy player within 24 blocks to summon four knight golems. They last 60 seconds and pursue that player. The 45-second cooldown is shared with Execution. You can have one squad at a time; capturing mobs is no longer supported.
+- **Execution (`/ability 2`).** Marks an enemy player for 30 seconds, increasing incoming enemy damage by 30%.
 - **Ruler’s Authority.** Reduces incoming damage by 10% when at least three other players are within 12 blocks.
 
 **Altar recipe.** 1 [King’s Crown](#kings-crown), 8 netherite ingots, 16 diamond blocks, 1 nether star, 2 PvP player heads.  
 **Weapon ID:** `kings_decree`
 
-> **Staff update.** A living summon returns to the staff with its current health when its chunk unloads.
+The cast needs space for all four knights on solid ground. Failed casts don't start the cooldown. Knights respect PvP and team protection, drop no loot or XP, and disappear when their owner or target becomes invalid or their time runs out. Their models use vanilla item displays and the resource pack. Ordinary golems keep their usual appearance, and players don't need a client mod.
+
+The models follow the golems' position and facing, but their limbs don't animate yet.
+
+**Upgrading old staffs:** back up the world and keep `data/amplified-items/summons.json`. The migration returns eligible land mobs. Fish, tadpoles, axolotls, dolphins, squid and nautiluses stay stored for admin recovery so they aren't released onto dry land.
 
 ### VenomBolt
 
@@ -252,6 +258,20 @@ The vanilla-style weapon art uses 16×16 sprites. To regenerate it with Pillow i
 
 ## Build from source
 
-Use JDK 25 and run `./gradlew build` or `gradlew.bat build` on Windows. Find the JAR in `build/libs` and the resource pack in `build/distributions`.
+Use JDK 25. Gradle's asset tests also need Python 3.11+ with Pillow installed. Set `PYTHON` to its executable if `python3` isn't on PATH. The installed mod doesn't need Python.
 
-You can also build with `python3 tools/build_direct.py`. Add `--verification` to build the test JAR for a disposable Fabric server. The test JAR changes the test world and stops the server after running the checks.
+Run `./gradlew clean build verificationJar` or `gradlew.bat clean build verificationJar` on Windows. Find the JAR in `build/libs` and both packs in `build/distributions`. `ISOLATED-TESTS-ONLY.jar` is a destructive test harness: never install it on a real server.
+
+Run `python3 -m unittest discover -s tools/tests -p "test_*.py" -v` and `python3 tools/audit_assets.py --check`. Then run `python3 tools/package_release.py` to write the release files and checksums to `build/release/1.8.0/`. See [Releasing](RELEASING.md) for the server checks and upload steps.
+
+You can also build with `python3 tools/build_direct.py`. Add `--verification` to compile the test JAR. Both build paths read the version from `gradle.properties` and exercise all standalone Java regression entry points.
+
+### Optional datapack export
+
+`amplified-items-datapack-1.8.0.zip` contains the Sunlight recipe and its recipe-book advancement. The mod already includes both, so this ZIP is optional. It doesn't replace the Fabric JAR or provide the weapon abilities. If you want a separate copy of the recipes, put it in `<world>/datapacks/` and run `/reload`. Knight textures belong in the resource pack, not the datapack.
+
+The crown has no crafting-table recipe; it is only a one-time altar reward (apart from operator commands).
+
+### Isolated server checks
+
+After accepting Mojang's EULA, run `python3 tools/run_runtime_checks.py --accept-eula --restart --jar build/libs/amplified-items-1.8.0.jar --verification-jar build/libs/ISOLATED-TESTS-ONLY.jar`. The runner creates a disposable world under `build/runtime-verification/` and listens only on loopback. Never copy the test JAR to a production server. `RELEASE_NOTES.md` lists completed tests and the checks still pending.

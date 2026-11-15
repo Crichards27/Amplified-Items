@@ -89,10 +89,10 @@ public final class MeleeAbilities {
         var config = AmplifiedItems.CONFIG;
         Vec3 center = player.getEyePosition().add(player.getLookAngle().scale(1.4));
         player.level().sendParticles(ParticleTypes.SWEEP_ATTACK, center.x, center.y, center.z, 3, .5, .2, .5, 0);
-        boolean landed = false;
         for (LivingEntity target : Abilities.splashTargets(player, player, player.getEyePosition(), config.crimsonCleaveRange, null)) {
-            if (inFront(player, target)
-                    && target.hurtServer(player.level(), player.level().damageSources().playerAttack(player), (float) config.crimsonCleaveDamage)) landed = true;
+            if (inFront(player, target)) {
+                target.hurtServer(player.level(), player.level().damageSources().playerAttack(player), (float) config.crimsonCleaveDamage);
+            }
         }
         return true;
     }

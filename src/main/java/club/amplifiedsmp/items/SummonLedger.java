@@ -7,13 +7,17 @@ import java.util.*;
 
 /** Authoritative per-world state. Cloned staff items share a record, never clone a mob. */
 public final class SummonLedger {
-    public enum State { STORED, ACTIVE, DEAD }
+    public enum State { STORED, ACTIVE, DEAD, RETURNING, RESTORED }
     public static final class Entry {
         public UUID staff;
         public UUID owner;
         public UUID entity;
         public String snapshot;
         public State state;
+        // Crash-recoverable one-time return plan. No new captures are written by the mod.
+        public UUID recoveryEntity;
+        public String recoveryDimension;
+        public double recoveryX, recoveryY, recoveryZ;
         public Entry(UUID staff, UUID owner, UUID entity, String snapshot, State state) {
             this.staff = staff; this.owner = owner; this.entity = entity; this.snapshot = snapshot; this.state = state;
         }
@@ -33,8 +37,12 @@ public final class SummonLedger {
             throw new IOException("Invalid summon ledger: " + path + ". Restore its backup; it will not be overwritten.");
         for (var e : data.entries.entrySet()) {
             var v = e.getValue();
-            if (v == null || v.staff == null || !e.getKey().equals(v.staff) || v.state == null || v.entity == null || v.snapshot == null)
+            if (v == null || v.staff == null || v.owner == null || !e.getKey().equals(v.staff) || v.state == null || v.entity == null || v.snapshot == null)
                 throw new IOException("Malformed summon record in " + path);
+            if (v.state == State.RETURNING && (v.recoveryEntity == null || v.recoveryDimension == null
+                    || !v.recoveryDimension.matches("[a-z0-9_.-]+:[a-z0-9_./-]+")
+                    || !Double.isFinite(v.recoveryX) || !Double.isFinite(v.recoveryY) || !Double.isFinite(v.recoveryZ)))
+                throw new IOException("Malformed pet-return plan in " + path);
         }
     }
     public Entry get(UUID staff) { return data.entries.get(staff); }

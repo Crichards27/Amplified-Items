@@ -1,6 +1,7 @@
 package club.amplifiedsmp.items;
 
 import com.sun.net.httpserver.HttpServer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.ClientboundResourcePackPushPacket;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,18 +18,31 @@ public final class PackHost implements AutoCloseable {
     private String sha1;
     // Preserve the advertised pack identity for servers upgrading from the initial build.
     public static final UUID ID = UUID.fromString("f8cacdc5-4749-386b-8054-2a92c9a775c2");
+    private final java.util.function.Supplier<String> version;
+
+    public PackHost() {
+        this(() -> FabricLoader.getInstance().getModContainer("amplified_items").orElseThrow()
+            .getMetadata().getVersion().getFriendlyString());
+    }
+
+    PackHost(java.util.function.Supplier<String> version) {
+        this.version = Objects.requireNonNull(version);
+    }
+
     public void start(Path configDir) throws Exception {
-        Path pack = configDir.resolve("amplified-items-resources-1.7.0.zip");
-        try (var in = getClass().getResourceAsStream("/bundled/amplified-items-resources-1.7.0.zip")) {
+        close();
+        String filename = "amplified-items-resources-" + version.get() + ".zip";
+        Path pack = configDir.resolve(filename);
+        try (var in = getClass().getResourceAsStream("/bundled/" + filename)) {
             if (in == null) throw new IllegalStateException("Bundled pack is missing");
             // User edits to this extracted pack survive restarts.
             if (!Files.exists(pack)) Files.copy(in, pack);
         }
         byte[] bytes = Files.readAllBytes(pack);
-        sha1 = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(bytes));
+        String digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(bytes));
         var config = AmplifiedItems.CONFIG;
-        AmplifiedItems.LOG.info("Resource pack: {} (SHA-1 {})", pack, sha1);
-        if (!config.resourcePackHostEnabled) return;
+        AmplifiedItems.LOG.info("Resource pack: {} (SHA-1 {})", pack, digest);
+        if (!config.resourcePackHostEnabled) { sha1 = digest; return; }
         host = HttpServer.create(new InetSocketAddress(config.resourcePackBindAddress, config.resourcePackPort), 16);
         executor = new ThreadPoolExecutor(1, 2, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<>(16), r -> {
             Thread t = new Thread(r, "amplified-items-pack"); t.setDaemon(true); return t;
@@ -41,7 +55,7 @@ public final class PackHost implements AutoCloseable {
                 String method = exchange.getRequestMethod();
                 if (!method.equals("GET") && !method.equals("HEAD")) { exchange.sendResponseHeaders(405, -1); return; }
                 exchange.getResponseHeaders().set("Content-Type", "application/zip");
-                exchange.getResponseHeaders().set("ETag", "\"" + sha1 + "\"");
+                exchange.getResponseHeaders().set("ETag", "\"" + digest + "\"");
                 exchange.getResponseHeaders().set("Cache-Control", "public, max-age=300");
                 exchange.sendResponseHeaders(200, method.equals("HEAD") ? -1 : bytes.length);
                 if (method.equals("GET")) exchange.getResponseBody().write(bytes);
@@ -49,6 +63,7 @@ public final class PackHost implements AutoCloseable {
         };
         host.createContext("/amplified-items.zip", handler);
         host.start();
+        sha1 = digest;
         AmplifiedItems.LOG.info("Pack host listening on {}:{}", config.resourcePackBindAddress, config.resourcePackPort);
         if (config.resourcePackPublicUrl.isBlank()) AmplifiedItems.LOG.warn("Set resourcePackPublicUrl to let clients download weapon textures.");
     }
@@ -60,7 +75,8 @@ public final class PackHost implements AutoCloseable {
     }
     public String sha1() { return sha1; }
     @Override public void close() {
-        if (host != null) host.stop(0);
-        if (executor != null) executor.shutdownNow();
+        sha1 = null;
+        if (host != null) { host.stop(0); host = null; }
+        if (executor != null) { executor.shutdownNow(); executor = null; }
     }
 }

@@ -1,5 +1,5 @@
 {
-  "configVersion": 9,
+  "configVersion": 10,
   "executionMultiplier": 1.3,
   "executionSeconds": 30,
   "executionRange": 24.0,
@@ -48,11 +48,8 @@
   "bloodlustBuildSeconds": 10,
   "bloodlustBonus": 0.2,
   "summonMaxSeconds": 60,
-  "summonIdleSeconds": 10,
   "summonMeleeDamage": 4.0,
   "summonTargetRange": 24.0,
-  "captureDenylist": [],
-  "allowCapturingOtherPlayersPets": false,
   "pvpHeadDrops": true,
   "altarEventRequirements": {},
   "resourcePackHostEnabled": false,
@@ -69,10 +66,10 @@
       "primary": "rulers_command",
       "secondary": "execution",
       "passive": "rulers_authority",
-      "primaryCooldownSeconds": 3.0,
+      "primaryCooldownSeconds": 45.0,
       "secondaryCooldownSeconds": 45.0,
       "lore": [
-        "Ruler's Command: capture, summon, or recall a mob",
+        "Ruler's Command: summon four royal knights against an aimed enemy player",
         "Execution",
         "Authority: nearby players reduce damage"
       ],

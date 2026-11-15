@@ -9,15 +9,59 @@ dependencies {
 }
 java { toolchain.languageVersion = JavaLanguageVersion.of(25); withSourcesJar() }
 tasks.withType(JavaCompile).configureEach { options.release = 25 }
-processResources { inputs.property 'version', project.version; filesMatching('fabric.mod.json') { expand version: project.version } }
-processResources { from('resourcepack') { include 'assets/**' } }
-tasks.register('logicChecks', JavaExec) {
-    dependsOn testClasses
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'club.amplifiedsmp.items.LogicChecks'
-    enableAssertions = true
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
 }
-check.dependsOn logicChecks
+sourceSets {
+    verification {
+        java.srcDir 'verification'
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += output + compileClasspath
+    }
+}
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+    from('resourcepack') { include 'assets/**' }
+}
+// Run every standalone regression entry point, not just the original suite.
+fileTree('src/test/java').matching { include '**/*Checks.java' }.files.sort().each { file ->
+    def relative = file.toPath().toAbsolutePath().normalize()
+    def base = layout.projectDirectory.dir('src/test/java').asFile.toPath().toAbsolutePath().normalize()
+    def className = base.relativize(relative).toString().replace(File.separator, '.').replaceAll(/\.java$/, '')
+    def taskName = file.name.substring(0, 1).toLowerCase() + file.name.substring(1).replace('.java', '')
+    tasks.register(taskName, JavaExec) {
+        dependsOn testClasses
+        classpath = sourceSets.test.runtimeClasspath
+        mainClass = className
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
+        enableAssertions = true
+    }
+    check.dependsOn taskName
+}
+tasks.register('dataPack', Zip) {
+    from('src/main/resources') { include 'data/**' }
+    from('datapack') { include 'pack.mcmeta' }
+    archiveFileName = "amplified-items-datapack-${project.version}.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+}
+tasks.register('verificationJar', Jar) {
+    dependsOn verificationClasses
+    from sourceSets.verification.output
+    archiveFileName = 'ISOLATED-TESTS-ONLY.jar'
+    destinationDirectory = layout.buildDirectory.dir('libs')
+    def descriptor = layout.buildDirectory.file('verification-metadata/fabric.mod.json')
+    doFirst {
+        descriptor.get().asFile.parentFile.mkdirs()
+        descriptor.get().asFile.text = groovy.json.JsonOutput.toJson([
+            schemaVersion: 1, id: 'amplified_verification', version: '1.0', environment: 'server',
+            entrypoints: [main: ['club.amplifiedsmp.items.verification.RuntimeChecks']],
+            depends: [amplified_items: '*']
+        ])
+    }
+    from(descriptor)
+}
 tasks.register('resourcePack', Zip) {
     from 'resourcepack'
     archiveFileName = "amplified-items-resources-${project.version}.zip"
@@ -25,4 +69,22 @@ tasks.register('resourcePack', Zip) {
 }
 processResources.dependsOn resourcePack
 processResources { from(tasks.named('resourcePack')) { into 'bundled' } }
-build.dependsOn resourcePack
+build.dependsOn resourcePack, dataPack
+jar { from('LICENSE') }
+tasks.register('exportExampleConfig', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'club.amplifiedsmp.items.ConfigExampleChecks'
+    args '--write-config'
+    javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
+}
+def pythonCommand = providers.environmentVariable('PYTHON').orElse('python3')
+tasks.register('pythonChecks', Exec) {
+    commandLine pythonCommand.get(), '-m', 'unittest', 'discover', '-s', 'tools', '-p', 'test_*.py', '-v'
+}
+tasks.register('releaseChecks', Exec) {
+    commandLine pythonCommand.get(), '-m', 'unittest', 'discover', '-s', 'tools/tests', '-p', 'test_*.py', '-v'
+}
+check.dependsOn pythonChecks, releaseChecks
+// Tests use standalone JavaExec checks, not JUnit; Gradle 9 otherwise fails on zero JUnit tests.
+test { failOnNoDiscoveredTests = false }

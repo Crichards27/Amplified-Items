@@ -19,6 +19,8 @@ public final class LogicChecks {
         try {
             var config = WeaponConfig.load(root.resolve("config/config.json"));
             check(config.weapons.size()==11,"Ten weapons and a crown");
+            check(config.enabledWeapon("kings_decree").primaryCooldownSeconds() == 45,
+                "Four royal knights use a 45-second default cooldown");
             check(config.executionSeconds==30 && config.venomPoisonSeconds==10,"Requested effect durations");
             check(WeaponConfig.load(root.resolve("config/config.json")).weapons.equals(config.weapons),"Config round-trip");
             config.executionMultiplier=Double.NaN; reject(config::validate); config.executionMultiplier=1.3;
@@ -47,10 +49,10 @@ public final class LogicChecks {
             Path v3Path = root.resolve("config/v3.json");
             Files.writeString(v3Path, WeaponConfig.JSON.toJson(oldV3));
             var fromV3 = WeaponConfig.load(v3Path);
-            check(fromV3.configVersion == 9 && fromV3.grappleRange == 16, "Old grapple ranges are clamped during migration");
+            check(fromV3.configVersion == 10 && fromV3.grappleRange == 16, "Old grapple ranges are clamped during migration");
             check(fromV3.enabledWeapon("kings_decree").ritual().ingredients().get(RitualRecipe.PVP_HEAD) == 2 && fromV3.enabledWeapon("venombolt") == null,
                 "Legacy weapons get rituals and enabled defaults while explicit disables survive");
-            check(fromV3.enabledWeapon("kings_decree").lore().equals(List.of("summon / recall", "Custom note")), "Control lore migrates");
+            check(fromV3.enabledWeapon("kings_decree").lore().equals(List.of("Ruler's Command: summon four royal knights against an aimed enemy player", "Custom note")), "Control lore migrates");
             check(WeaponConfig.abilityLore("Sneak + F: Execution").equals("Execution")
                 && WeaponConfig.abilityLore("Tap right-click: Slow Falling").equals("Tap right-click: Slow Falling"),
                 "Legacy menu lore changes while vanilla use instructions remain");
@@ -92,6 +94,24 @@ public final class LogicChecks {
             var upgradedBloodFang = WeaponConfig.load(v7Path).enabledWeapon("bloodfang");
             check(upgradedBloodFang.baseItem().equals("minecraft:netherite_axe")
                 && upgradedBloodFang.ritual().equals(customRecipe), "BloodFang upgrades to an axe and keeps its configured recipe");
+            var oldV9 = WeaponConfig.JSON.toJsonTree(new WeaponConfig()).getAsJsonObject();
+            oldV9.addProperty("configVersion", 9);
+            var oldDecree = oldV9.getAsJsonArray("weapons").get(0).getAsJsonObject();
+            oldDecree.addProperty("primaryCooldownSeconds", 3);
+            oldDecree.add("lore", WeaponConfig.JSON.toJsonTree(List.of("Ruler's Command: capture, summon, or recall a mob", "Custom note")));
+            Path v9Path = root.resolve("config/v9.json");
+            Files.writeString(v9Path, WeaponConfig.JSON.toJson(oldV9));
+            var knightUpgrade = WeaponConfig.load(v9Path);
+            check(knightUpgrade.configVersion == 10 && knightUpgrade.enabledWeapon("kings_decree").primaryCooldownSeconds() == 45,
+                "Legacy default command cooldown upgrades to 45 seconds");
+            check(knightUpgrade.enabledWeapon("kings_decree").lore().equals(List.of(
+                "Ruler's Command: summon four royal knights against an aimed enemy player", "Custom note")),
+                "Capture lore upgrades without deleting custom notes");
+            oldDecree.addProperty("primaryCooldownSeconds", 25);
+            Files.writeString(v9Path, WeaponConfig.JSON.toJson(oldV9));
+            check(WeaponConfig.load(v9Path).enabledWeapon("kings_decree").primaryCooldownSeconds() == 25,
+                "Custom command cooldown survives the knight migration");
+            check(!WeaponConfig.JSON.toJson(new WeaponConfig()).contains("captureDenylist"), "New config has no obsolete capture settings");
             var timers=new Timers(); UUID p=UUID.randomUUID(), other=UUID.randomUUID();
             timers.start(p,"execution",100,45);
             check(timers.remaining(p,"execution",100)==900,"45 second cooldown in ticks");
@@ -99,6 +119,8 @@ public final class LogicChecks {
             check(timers.remaining(p,"venom_shot",100)==0,"Cooldowns are per ability");
             check(timers.remaining(p,"execution",1000)==0,"Cooldown expires exactly at boundary");
             timers.prune(1001); check(timers.remaining(p,"execution",1001)==0,"Expired cooldown pruning");
+            check(Arrays.stream(SummonLedger.State.values()).anyMatch(s -> s.name().equals("RESTORED")),
+                "Legacy ledger records one-time pet recovery separately from death");
             var ledger=new SummonLedger(root.resolve("world/summons.json"));
             UUID staff=UUID.randomUUID(), mob=UUID.randomUUID();
             ledger.transaction(() -> { ledger.put(new SummonLedger.Entry(staff,p,mob,"{id:\"minecraft:cow\",Health:7f}",SummonLedger.State.STORED)); ledger.retire(mob); });
@@ -118,6 +140,32 @@ public final class LogicChecks {
             try {new SummonLedger(root.resolve("world/broken.json"));throw new AssertionError("Corruption must fail closed");}
             catch (com.google.gson.JsonParseException | java.io.IOException expected) {checks++;}
             check(Files.readString(root.resolve("world/broken.json")).equals(broken),"Corrupt ledger is never overwritten");
+            Path orphanPath = root.resolve("world/orphan.json");
+            Files.writeString(orphanPath, "{\"format\":1,\"entries\":{\"" + staff + "\":{\"staff\":\"" + staff
+                + "\",\"entity\":\"" + mob + "\",\"snapshot\":\"{}\",\"state\":\"STORED\"}},\"retired\":[]}");
+            boolean orphanRejected = false;
+            try { new SummonLedger(orphanPath); } catch (java.io.IOException expected) { orphanRejected = true; }
+            check(orphanRejected, "An ownerless legacy capture fails closed instead of crashing the recovery tick");
+            var invalidPlan = WeaponConfig.JSON.toJsonTree(again.get(staff)).getAsJsonObject();
+            invalidPlan.addProperty("state", "RETURNING");
+            var invalidData = new SummonLedger.Data();
+            invalidData.entries.put(staff, WeaponConfig.JSON.fromJson(invalidPlan, SummonLedger.Entry.class));
+            Files.writeString(orphanPath, WeaponConfig.JSON.toJson(invalidData));
+            boolean planRejected = false;
+            try { new SummonLedger(orphanPath); } catch (java.io.IOException expected) { planRejected = true; }
+            check(planRejected, "An incomplete pet-return plan is rejected without overwriting the legacy snapshot");
+            again.transaction(() -> {
+                var entry = again.get(staff); entry.state = SummonLedger.State.RETURNING;
+                entry.recoveryEntity = UUID.randomUUID(); entry.recoveryDimension = "minecraft:overworld";
+                entry.recoveryX = 3.5; entry.recoveryY = 101; entry.recoveryZ = -2.5;
+            });
+            var returnPlan = new SummonLedger(root.resolve("world/summons.json")).get(staff);
+            check(returnPlan.state == SummonLedger.State.RETURNING && returnPlan.recoveryEntity != null
+                    && returnPlan.recoveryDimension.equals("minecraft:overworld") && returnPlan.recoveryZ == -2.5,
+                "Pet recovery commits its UUID and exact return location before spawning");
+            again.transaction(() -> again.get(staff).state = SummonLedger.State.RESTORED);
+            check(new SummonLedger(root.resolve("world/summons.json")).get(staff).state == SummonLedger.State.RESTORED,
+                "Completed pet restoration survives reopen and never re-enters capture storage");
             System.out.println("AMPLIFIED_LOGIC_OK " + checks);
         } finally {
             try(var paths=Files.walk(root)) {for(Path p:paths.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(p);}

@@ -3,3 +3,8 @@ build/
 run/
 .idea/
 *.iml
+bin/
+.vscode/
+__pycache__/
+*.pyc
+logs/
